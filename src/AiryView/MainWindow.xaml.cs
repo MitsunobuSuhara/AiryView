@@ -46,8 +46,13 @@ public partial class MainWindow : Window
         public double Zoom = 1;
         public int Rotation;
         public bool InitialFitComplete;
+        public byte[]? SvgBytes;
+        public readonly int DisplayWidth = image.PixelWidth, DisplayHeight = image.PixelHeight;
     }
     private ImageTabState? CurrentImage => (Tabs.SelectedItem as TabItem)?.Tag as ImageTabState;
+    private readonly DispatcherTimer svgTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private bool svgRendering;
+    private int svgRequestVersion;
     private readonly DispatcherTimer zoomTimer = new() { Interval = TimeSpan.FromMilliseconds(140) };
     private sealed class PageView
     {
@@ -139,11 +144,12 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Closed += (_, _) => windowClosed = true;
+        Closed += (_, _) => { windowClosed = true; svgTimer.Stop(); ++svgRequestVersion; };
         SourceInitialized += (_, _) => ApplyDarkTitleBar();
         WindowPreferences.Restore(this);
+        svgTimer.Tick += async (_, _) => await RefreshSvgAsync();
         zoomTimer.Tick += async (_, _) => { zoomTimer.Stop(); await RenderVisible(); };
-        DpiChanged += (_, _) => { zoomTimer.Stop(); zoomTimer.Start(); };
+        DpiChanged += (_, _) => { zoomTimer.Stop(); zoomTimer.Start(); if (CurrentImage is { SvgBytes: not null } image) ApplyImageLayout(image); };
     }
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -246,7 +252,7 @@ public partial class MainWindow : Window
                         await RenderCurrent();
                         continue;
                     }
-                    var image = new ImageTabState(path, bitmap);
+                    var image = new ImageTabState(path, bitmap) { SvgBytes = extension == ".svg" ? bytes : null };
                     var imageTab = CreateTab(System.IO.Path.GetFileName(path), path, image);
                     opening = true; Tabs.Items.Add(imageTab); Tabs.SelectedItem = imageTab; opening = false;
                     await RenderCurrent(); AddRecentFile(path); continue;
@@ -297,25 +303,25 @@ public partial class MainWindow : Window
         using var png = image.Encode(SKEncodedImageFormat.Png, 100);
         return LoadWpfBitmap(png.ToArray());
     }
-    internal static (int Width, int Height) SvgRasterSize(double width, double height)
+    internal static (int Width, int Height) SvgRasterSize(double width, double height, double requestedScale = 4)
     {
-        if (!double.IsFinite(width) || !double.IsFinite(height) || width <= 0 || height <= 0)
+        if (!double.IsFinite(width) || !double.IsFinite(height) || !double.IsFinite(requestedScale) || requestedScale <= 0 || width <= 0 || height <= 0)
             throw new IOException("SVGのサイズが正しくありません。");
         // 丸め後も上限を超えず、極端に細長い図形でも巨大なバッファを作らない。
         const double maxPixels = 16_000_000;
         const double maxSide = 8192;
-        double scale = Math.Min(4, Math.Min(maxSide / Math.Max(width, height), Math.Sqrt(maxPixels / width / height)));
+        double scale = Math.Min(requestedScale, Math.Min(maxSide / Math.Max(width, height), Math.Sqrt(maxPixels / width / height)));
         int w = Math.Max(1, (int)Math.Floor(width * scale));
         int h = Math.Max(1, (int)Math.Floor(height * scale));
         return (w, h);
     }
-    private static BitmapSource LoadSvgBitmap(byte[] bytes)
+    private static BitmapSource LoadSvgBitmap(byte[] bytes, double? requestedWidth = null)
     {
         using var stream = new MemoryStream(bytes, writable: false);
         using var svg = new SKSvg(); svg.Load(stream);
         var picture = svg.Picture ?? throw new IOException("SVGの図形を読み込めませんでした。");
         SKRect bounds = picture.CullRect;
-        var (width, height) = SvgRasterSize(bounds.Width, bounds.Height);
+        var (width, height) = SvgRasterSize(bounds.Width, bounds.Height, requestedWidth.HasValue ? requestedWidth.Value / bounds.Width : 4);
         using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul)) ?? throw new IOException("SVG用の表示領域を作成できませんでした。");
         surface.Canvas.Clear(SKColors.Transparent);
         surface.Canvas.Scale(width / bounds.Width, height / bounds.Height);
@@ -357,6 +363,7 @@ public partial class MainWindow : Window
     private async Task RenderCurrent()
     {
         SaveReadingPosition();
+        ++svgRequestVersion; svgTimer.Stop();
         ++renderVersion;
         var state = Current;
         var textDocument = CurrentText;
@@ -586,7 +593,7 @@ public partial class MainWindow : Window
     private double ImageFitWidthZoom(ImageTabState state)
     {
         bool side = Math.Abs(state.Rotation) % 180 == 90;
-        double width = side ? state.Image.PixelHeight : state.Image.PixelWidth;
+        double width = side ? state.DisplayHeight : state.DisplayWidth;
         ImageViewer.UpdateLayout();
         double viewportWidth = ImageViewer.ViewportWidth > 0 ? ImageViewer.ViewportWidth : ImageViewer.ActualWidth;
         double availableWidth = (viewportWidth > 0 ? viewportWidth : ContentGrid.ActualWidth) - 24;
@@ -602,18 +609,44 @@ public partial class MainWindow : Window
         ImageViewer.ScrollToVerticalOffset(0);
         return true;
     }
+    private async Task RefreshSvgAsync()
+    {
+        if (svgRendering) return; // 同時に巨大な描画用メモリを確保しない。
+        svgTimer.Stop();
+        if (windowClosed || CurrentImage is not { SvgBytes: { } bytes } state) return;
+        int request = svgRequestVersion;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var target = SvgRasterSize(state.DisplayWidth, state.DisplayHeight, state.Zoom * Math.Max(dpi.DpiScaleX, dpi.DpiScaleY));
+        if (Math.Abs(state.Image.PixelWidth - target.Width) <= 1) return;
+        svgRendering = true;
+        try
+        {
+            var bitmap = await Task.Run(() => LoadSvgBitmap(bytes, target.Width));
+            if (windowClosed || request != svgRequestVersion || !ReferenceEquals(CurrentImage, state)) return;
+            // 表示サイズ・スクロール位置を変えずに画素だけ入れ替える。
+            state.Image = bitmap;
+            ReaderImage.Source = bitmap;
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or InvalidOperationException)
+        {
+            if (!windowClosed && request == svgRequestVersion)
+                Status.Text = "SVGの高精細表示を更新できなかったため、現在の画像を保持しています。";
+        }
+        finally { svgRendering = false; }
+    }
     private void ApplyImageLayout(ImageTabState state)
     {
-        ReaderImage.Width = state.Image.PixelWidth * state.Zoom;
-        ReaderImage.Height = state.Image.PixelHeight * state.Zoom;
+        ReaderImage.Width = state.DisplayWidth * state.Zoom;
+        ReaderImage.Height = state.DisplayHeight * state.Zoom;
         ReaderImage.LayoutTransform = new RotateTransform(state.Rotation);
+        if (state.SvgBytes != null) { ++svgRequestVersion; svgTimer.Stop(); svgTimer.Start(); }
         RenderOptions.SetBitmapScalingMode(ReaderImage, state.Zoom >= 1 ? BitmapScalingMode.HighQuality : BitmapScalingMode.Fant);
     }
     private void UpdateNonPdfStatus()
     {
         if (CurrentText is { } text)
             Status.Text = text.IsMarkdown ? $"{System.IO.Path.GetFileName(text.Path)}  ·  {(text.SourceMode ? "Source編集" : "Preview")}  ·  Ctrl＋Shift＋Mで切替" : $"{(string.IsNullOrEmpty(text.Path) ? "無題.txt" : System.IO.Path.GetFileName(text.Path))}  ·  編集可能  ·  Ctrl＋Sで保存";
-        else if (CurrentImage is { } image) Status.Text = $"{System.IO.Path.GetFileName(image.Path)}  ·  {image.Image.PixelWidth} × {image.Image.PixelHeight} px  ·  表示 {image.Zoom * 100:0.##}%";
+        else if (CurrentImage is { } image) Status.Text = $"{System.IO.Path.GetFileName(image.Path)}  ·  {image.DisplayWidth} × {image.DisplayHeight} px  ·  表示 {image.Zoom * 100:0.##}%";
     }
     private void ToggleWrap(object s, RoutedEventArgs e) => ToggleWrapForTest();
     internal bool ToggleWrapForTest()
@@ -1045,7 +1078,7 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.0.10\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.0.11\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)

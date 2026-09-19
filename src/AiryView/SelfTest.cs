@@ -403,6 +403,26 @@ public static class SelfTest
         await window.Dispatcher.InvokeAsync(() => dispatcherResponded = true);
         var decodedImage = await decodeTask;
         Check(dispatcherResponded && decodedImage.IsFrozen && decodedImage.PixelWidth == 3200, "画像のバックグラウンド変換とUIへの受け渡し");
+        await window.OpenPathsAsync([svgFixture]); window.UpdateLayout();
+        var svgDisplay = (Image)window.FindName("ReaderImage");
+        positionZoomInput.Text = "200";
+        positionZoomInput.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Enter) { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
+        window.UpdateLayout();
+        double svgDisplayWidth = svgDisplay.Width;
+        imageViewer.ScrollToVerticalOffset(150); window.UpdateLayout();
+        double svgScroll = imageViewer.VerticalOffset;
+        int pixelsBefore = ((BitmapSource)svgDisplay.Source).PixelWidth;
+        var svgWait = System.Diagnostics.Stopwatch.StartNew();
+        while (((BitmapSource)svgDisplay.Source).PixelWidth <= pixelsBefore && svgWait.ElapsedMilliseconds < 10000)
+            await Task.Delay(50);
+        Check(((BitmapSource)svgDisplay.Source).PixelWidth > pixelsBefore, "SVGは拡大操作後に高解像度で再描画");
+        Check(Near(svgDisplay.Width, svgDisplayWidth) && Near(imageViewer.VerticalOffset, svgScroll), "SVGの再描画で表示倍率と閲覧位置を維持");
+        positionZoomInput.Text = "300";
+        positionZoomInput.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Enter) { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
+        await window.OpenPathsAsync([imageFixture]); window.UpdateLayout();
+        var pngSource = svgDisplay.Source;
+        await Task.Delay(500);
+        Check(ReferenceEquals(svgDisplay.Source, pngSource), "SVGの遅延描画が移動先タブの画像を上書きしない");
         window.Close();
         File.WriteAllLines("artifacts/ui-test-results.txt", Results);
     }
