@@ -81,8 +81,7 @@ public partial class App : System.Windows.Application
         _ = ListenForFilesAsync(window, pipeCancellation.Token);
         window.Closed += (_, _) => { pipeCancellation.Cancel(); instanceMutex?.ReleaseMutex(); instanceMutex?.Dispose(); instanceMutex = null; };
         window.Show();
-        if (files.Length == 0) window.NewText();
-        else window.OpenPaths(files);
+        if (files.Length > 0) window.OpenPaths(files);
     }
     private static async Task<bool> ForwardFilesAsync(string[] files)
     {

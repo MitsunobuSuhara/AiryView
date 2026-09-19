@@ -19,6 +19,10 @@ public static class SelfTest
         string fixture = System.IO.Path.GetFullPath("artifacts/dimension-check.pdf");
         CreateFixture(fixture, 5);
         var window = new MainWindow(); window.Show();
+        window.UpdateLayout();
+        Check(window.TabCountForTest == 0 && ((FrameworkElement)window.FindName("Welcome")).IsVisible && !((FrameworkElement)window.FindName("TextEditorArea")).IsVisible, "単体起動の初期画面はメモを自動作成せず案内を表示");
+        Check(!((FrameworkElement)window.FindName("PageControls")).IsVisible && !((FrameworkElement)window.FindName("PrintButton")).IsVisible, "初期表示にPDF用操作の一瞬の表示を挟まない");
+        Capture(window, "artifacts/welcome-window.png");
         await window.NewTextAsync(); window.UpdateLayout();
         int firstTabCount = window.TabCountForTest;
         await window.NewTextAsync(); window.UpdateLayout();
