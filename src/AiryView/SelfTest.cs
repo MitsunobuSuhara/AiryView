@@ -97,6 +97,13 @@ public static class SelfTest
         var tabsScroller = (ScrollViewer)window.FindName("TabsScroller");
         var tabsControl = (TabControl)window.FindName("Tabs");
         Check(Double.IsNaN(toolbar.Height) && toolbar.Margin.Top == 5 && toolbar.Margin.Bottom == 5 && tabsScroller.Margin.Bottom == 3 && tabsControl.MinHeight == 34 && tabsControl.Items.OfType<TabItem>().All(tab => tab.MinHeight == 34), "操作行とタブ行を省スペースに保つ");
+        var extremeSvg = MainWindow.SvgRasterSize(1e30, 1);
+        Check(extremeSvg.Width <= 8192 && extremeSvg.Height >= 1, "極端に細長いSVGのメモリ使用量を制限");
+        var largeSvg = MainWindow.SvgRasterSize(100000, 100000);
+        Check((long)largeSvg.Width * largeSvg.Height <= 16_000_000, "SVG描画を1600万画素以下に制限");
+        bool invalidSvgRejected = false;
+        try { MainWindow.SvgRasterSize(double.NaN, 100); } catch (IOException) { invalidSvgRejected = true; }
+        Check(invalidSvgRejected, "不正なSVG寸法を描画前に拒否");
         string svgFixture = System.IO.Path.GetFullPath("artifacts/vector-view.svg");
         File.WriteAllText(svgFixture, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"640\" height=\"360\" viewBox=\"0 0 640 360\"><rect width=\"640\" height=\"360\" fill=\"#E6F3FF\"/><circle cx=\"180\" cy=\"180\" r=\"110\" fill=\"#2563EB\"/><text x=\"320\" y=\"205\" font-size=\"48\" fill=\"#192432\">SVG</text></svg>", Encoding.UTF8);
         await window.OpenPathsAsync([svgFixture]); window.UpdateLayout(); await Task.Delay(100);
@@ -151,6 +158,8 @@ public static class SelfTest
         Check(window.WindowState != WindowState.Minimized && window.IsVisible, "外部からファイルを開くと既存画面を最小化解除して表示");
         window.WindowState = WindowState.Maximized; App.BringWindowToFront(window); window.UpdateLayout();
         Check(window.WindowState == WindowState.Maximized, "外部からファイルを開いても最大化状態を維持");
+        window.WindowState = WindowState.Minimized; App.BringWindowToFront(window); window.UpdateLayout();
+        Check(window.WindowState == WindowState.Maximized, "最大化から最小化しても元の最大化状態へ復帰");
         Capture(window, "artifacts/viewer-window.png");
         var viewer = (ScrollViewer)window.FindName("Viewer");
         var host = (StackPanel)window.FindName("PagesHost");

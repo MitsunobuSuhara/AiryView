@@ -230,16 +230,25 @@ public partial class MainWindow : Window
         using var png = image.Encode(SKEncodedImageFormat.Png, 100);
         return LoadWpfBitmap(png.ToArray());
     }
+    internal static (int Width, int Height) SvgRasterSize(double width, double height)
+    {
+        if (!double.IsFinite(width) || !double.IsFinite(height) || width <= 0 || height <= 0)
+            throw new IOException("SVGのサイズが正しくありません。");
+        // 丸め後も上限を超えず、極端に細長い図形でも巨大なバッファを作らない。
+        const double maxPixels = 16_000_000;
+        const double maxSide = 8192;
+        double scale = Math.Min(4, Math.Min(maxSide / Math.Max(width, height), Math.Sqrt(maxPixels / width / height)));
+        int w = Math.Max(1, (int)Math.Floor(width * scale));
+        int h = Math.Max(1, (int)Math.Floor(height * scale));
+        return (w, h);
+    }
     private static BitmapSource LoadSvgBitmap(byte[] bytes)
     {
         using var stream = new MemoryStream(bytes, writable: false);
-        var svg = new SKSvg(); svg.Load(stream);
+        using var svg = new SKSvg(); svg.Load(stream);
         var picture = svg.Picture ?? throw new IOException("SVGの図形を読み込めませんでした。");
         SKRect bounds = picture.CullRect;
-        if (bounds.Width <= 0 || bounds.Height <= 0) throw new IOException("SVGのサイズを取得できませんでした。");
-        double scale = Math.Min(4, Math.Sqrt(MaxImagePixels / Math.Max(1, bounds.Width * bounds.Height)));
-        int width = Math.Max(1, (int)Math.Ceiling(bounds.Width * scale));
-        int height = Math.Max(1, (int)Math.Ceiling(bounds.Height * scale));
+        var (width, height) = SvgRasterSize(bounds.Width, bounds.Height);
         using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul)) ?? throw new IOException("SVG用の表示領域を作成できませんでした。");
         surface.Canvas.Clear(SKColors.Transparent);
         surface.Canvas.Scale(width / bounds.Width, height / bounds.Height);
@@ -966,7 +975,7 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.0.8\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.0.9\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)

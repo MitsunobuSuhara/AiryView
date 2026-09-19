@@ -1,6 +1,6 @@
 # AiryView（エアリービュー）
 
-Windows 11（64ビット）向けの、軽量ドキュメントビューアです。PDFを読み、原寸を意識して印刷できます。Markdown（.md）、テキスト（.txt）、画像（JPEG・PNG・TIFF・BMP）も開けます。
+Windows 11（64ビット）向けの、軽量ドキュメントビューアです。PDFを読み、原寸を意識して印刷できます。Markdown（.md）、テキスト（.txt）、画像（JPEG・PNG・TIFF・BMP・GIF・ICO・WebP・SVG）も開けます。
 
 ## ダウンロードとセットアップ
 
