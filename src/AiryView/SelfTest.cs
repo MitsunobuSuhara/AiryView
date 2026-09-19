@@ -370,6 +370,39 @@ public static class SelfTest
             Capture(tools, "artifacts/pdf-tools-window.png");
             tools.Close();
         }
+        string positionText = System.IO.Path.GetFullPath("artifacts/reading-position.txt");
+        File.WriteAllText(positionText, string.Join("\n", Enumerable.Range(1, 2000).Select(n => $"Line {n}: reading position")));
+        await window.OpenPathsAsync([positionText]); window.UpdateLayout();
+        textEditor.Select(500, 12);
+        textEditor.ScrollToVerticalOffset(600); window.UpdateLayout();
+        double savedTextOffset = textEditor.VerticalOffset;
+        await window.OpenPathsAsync([markdownFixture]); window.UpdateLayout();
+        await window.OpenPathsAsync([positionText]); window.UpdateLayout();
+        Check(savedTextOffset > 0 && Near(textEditor.VerticalOffset, savedTextOffset) && textEditor.SelectionStart == 500 && textEditor.SelectionLength == 12, "TXTのタブ復帰でスクロール位置と選択を復元");
+
+        await window.OpenPathsAsync([markdownFixture]); window.UpdateLayout();
+        window.ScrollMarkdownByWheel(-120); window.UpdateLayout();
+        double savedMarkdownOffset = window.MarkdownOffset;
+        await window.OpenPathsAsync([positionText]); window.UpdateLayout();
+        await window.OpenPathsAsync([markdownFixture]); window.UpdateLayout();
+        Check(savedMarkdownOffset > 0 && Near(window.MarkdownOffset, savedMarkdownOffset), "Markdownプレビューの読んでいた位置を復元");
+
+        await window.OpenPathsAsync([imageFixture]); window.UpdateLayout();
+        var positionZoomInput = (TextBox)window.FindName("ZoomText");
+        positionZoomInput.Text = "200";
+        positionZoomInput.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Enter) { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
+        window.UpdateLayout();
+        var imageViewer = (ScrollViewer)window.FindName("ImageViewer");
+        imageViewer.ScrollToVerticalOffset(300); imageViewer.ScrollToHorizontalOffset(200); window.UpdateLayout();
+        double savedImageY = imageViewer.VerticalOffset, savedImageX = imageViewer.HorizontalOffset;
+        await window.OpenPathsAsync([positionText]); window.UpdateLayout();
+        await window.OpenPathsAsync([imageFixture]); window.UpdateLayout();
+        Check(savedImageY > 0 && Near(imageViewer.VerticalOffset, savedImageY) && Near(imageViewer.HorizontalOffset, savedImageX), "画像のタブ復帰で縦横スクロール位置を復元");
+        var decodeTask = MainWindow.DecodeImageAsync(File.ReadAllBytes(imageFixture), ".png");
+        bool dispatcherResponded = false;
+        await window.Dispatcher.InvokeAsync(() => dispatcherResponded = true);
+        var decodedImage = await decodeTask;
+        Check(dispatcherResponded && decodedImage.IsFrozen && decodedImage.PixelWidth == 3200, "画像のバックグラウンド変換とUIへの受け渡し");
         window.Close();
         File.WriteAllLines("artifacts/ui-test-results.txt", Results);
     }

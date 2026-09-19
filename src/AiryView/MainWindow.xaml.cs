@@ -60,6 +60,62 @@ public partial class MainWindow : Window
     }
     private readonly List<PageView> pageViews = [];
     private Grid PageSurface => pageViews[Current!.Page].Surface;
+    private object? displayedState;
+    private bool displayedEditor;
+    private bool windowClosed;
+    private sealed class ReadingPosition
+    {
+        public double X, Y;
+        public int SelectionStart, SelectionLength;
+    }
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, ReadingPosition> readingPositions = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, ReadingPosition> previewPositions = new();
+
+    private void SaveReadingPosition()
+    {
+        if (displayedState is ImageTabState)
+        {
+            var position = readingPositions.GetOrCreateValue(displayedState);
+            position.X = ImageViewer.HorizontalOffset; position.Y = ImageViewer.VerticalOffset;
+        }
+        else if (displayedState is TextTabState)
+        {
+            var position = (displayedEditor ? readingPositions : previewPositions).GetOrCreateValue(displayedState);
+            if (displayedEditor)
+            {
+                position.X = TextEditor.HorizontalOffset; position.Y = TextEditor.VerticalOffset;
+                position.SelectionStart = TextEditor.SelectionStart; position.SelectionLength = TextEditor.SelectionLength;
+            }
+            else if (FindVisualChild<ScrollViewer>(MarkdownViewer) is { } viewer)
+            {
+                position.X = viewer.HorizontalOffset; position.Y = viewer.VerticalOffset;
+            }
+        }
+    }
+    private void RestoreReadingPosition(object? state, bool editor)
+    {
+        UpdateLayout();
+        if (state is ImageTabState image && image.InitialFitComplete)
+        {
+            var position = readingPositions.GetOrCreateValue(state);
+            ImageViewer.ScrollToHorizontalOffset(position.X); ImageViewer.ScrollToVerticalOffset(position.Y);
+        }
+        else if (state is TextTabState)
+        {
+            var position = (editor ? readingPositions : previewPositions).GetOrCreateValue(state);
+            if (editor)
+            {
+                TextEditor.Select(Math.Min(position.SelectionStart, TextEditor.Text.Length),
+                    Math.Min(position.SelectionLength, Math.Max(0, TextEditor.Text.Length - position.SelectionStart)));
+                TextEditor.ScrollToHorizontalOffset(position.X); TextEditor.ScrollToVerticalOffset(position.Y);
+            }
+            else if (FindVisualChild<ScrollViewer>(MarkdownViewer) is { } viewer)
+            {
+                viewer.ScrollToHorizontalOffset(position.X); viewer.ScrollToVerticalOffset(position.Y);
+            }
+        }
+        UpdateLayout();
+    }
     private bool changingLayout;
     private int renderVersion;
     private bool opening;
@@ -83,6 +139,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Closed += (_, _) => windowClosed = true;
         SourceInitialized += (_, _) => ApplyDarkTitleBar();
         WindowPreferences.Restore(this);
         zoomTimer.Tick += async (_, _) => { zoomTimer.Stop(); await RenderVisible(); };
@@ -180,8 +237,15 @@ public partial class MainWindow : Window
                 {
                     if (new FileInfo(path).Length > MaxImageBytes) throw new IOException("画像が大きすぎます（上限256MB）。");
                     byte[] bytes = await File.ReadAllBytesAsync(path);
-                    BitmapSource bitmap = extension == ".svg" ? LoadSvgBitmap(bytes) : extension == ".webp" ? LoadSkiaBitmap(bytes) : LoadWpfBitmap(bytes);
+                    BitmapSource bitmap = await DecodeImageAsync(bytes, extension);
                     if ((long)bitmap.PixelWidth * bitmap.PixelHeight > MaxImagePixels) throw new IOException("画像の画素数が大きすぎます（上限2億画素）。");
+                    if (windowClosed) return;
+                    if (FindOpenTab(path) is { } loadedTab)
+                    {
+                        Tabs.SelectedItem = loadedTab;
+                        await RenderCurrent();
+                        continue;
+                    }
                     var image = new ImageTabState(path, bitmap);
                     var imageTab = CreateTab(System.IO.Path.GetFileName(path), path, image);
                     opening = true; Tabs.Items.Add(imageTab); Tabs.SelectedItem = imageTab; opening = false;
@@ -208,6 +272,9 @@ public partial class MainWindow : Window
             catch (Exception ex) { Error(ex); Status.Text = "ファイルを開けませんでした。"; }
         }
     }
+    internal static Task<BitmapSource> DecodeImageAsync(byte[] bytes, string extension) =>
+        Task.Run(() => extension == ".svg" ? LoadSvgBitmap(bytes) : extension == ".webp" ? LoadSkiaBitmap(bytes) : LoadWpfBitmap(bytes));
+
     private static BitmapSource LoadWpfBitmap(byte[] bytes)
     {
         using var probe = new MemoryStream(bytes, writable: false);
@@ -289,10 +356,13 @@ public partial class MainWindow : Window
     }
     private async Task RenderCurrent()
     {
+        SaveReadingPosition();
         ++renderVersion;
         var state = Current;
         var textDocument = CurrentText;
         var image = CurrentImage;
+        displayedState = (object?)image ?? textDocument;
+        displayedEditor = textDocument?.ShowEditor == true;
         changingLayout = true;
         ClearPdfSelection();
         PagesHost.Children.Clear(); pageViews.Clear();
@@ -339,8 +409,8 @@ public partial class MainWindow : Window
         if (!ZoomText.IsKeyboardFocusWithin && (state != null || textDocument != null || image != null)) ZoomText.Text = (ActiveZoom * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         try
         {
-            if (textDocument != null) { UpdateNonPdfStatus(); return; }
-            if (image != null) { UpdateNonPdfStatus(); return; }
+            if (textDocument != null) { RestoreReadingPosition(textDocument, displayedEditor); UpdateNonPdfStatus(); return; }
+            if (image != null) { RestoreReadingPosition(image, false); UpdateNonPdfStatus(); return; }
             if (state == null) return;
             for (int i = 0; i < state.Document.Count; i++)
             {
@@ -975,7 +1045,7 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.0.9\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.0.10\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)
