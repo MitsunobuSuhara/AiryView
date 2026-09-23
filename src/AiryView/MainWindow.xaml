@@ -1,5 +1,5 @@
 <Window x:Class="AiryView.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="AiryView 2.0.12" Width="1180" Height="840" MinWidth="860" MinHeight="560" Background="#F5F7FA" FontFamily="Yu Gothic UI" FontSize="14" Icon="Assets/icon.ico"
+ Title="AiryView 2.0.13" Width="1180" Height="840" MinWidth="860" MinHeight="560" Background="#F5F7FA" FontFamily="Yu Gothic UI" FontSize="14" Icon="Assets/icon.ico"
  UseLayoutRounding="True" SnapsToDevicePixels="True" AllowDrop="True" Drop="FilesDropped" PreviewKeyDown="WindowKeyDown" Closing="WindowClosing">
  <DockPanel>
   <StackPanel DockPanel.Dock="Top" Background="#F5F7FA">
@@ -28,9 +28,9 @@
   <Grid x:Name="ContentGrid" Background="#BCC3CC">
    <StackPanel x:Name="Welcome" VerticalAlignment="Center" HorizontalAlignment="Center">
     <Image x:Name="WelcomeCrane" Width="88" Height="88" Stretch="Uniform" Margin="0,0,0,24" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="AiryViewの鶴"/>
-    <TextBlock Text="軽やかに開く。寸法を守って印刷する。" FontSize="25" Foreground="#334155" HorizontalAlignment="Center"/>
-    <TextBlock Text="PDF・画像・Markdownなどは、左上の「開く」から。" Margin="0,18,0,0" Foreground="#526173" HorizontalAlignment="Center"/>
-    <TextBlock Text="メモを開くには Ctrl＋T または タブ横の「＋」。" Margin="0,10,0,0" Foreground="#526173" HorizontalAlignment="Center"/>
+    <TextBlock Text="すっと開く。正確に印刷。 / Open with ease. Print with precision." FontSize="25" Foreground="#334155" HorizontalAlignment="Center"/>
+    <TextBlock Text="ファイルを開く / Open a file" Margin="0,18,0,0" Foreground="#526173" HorizontalAlignment="Center"/>
+    <TextBlock Text="新しいメモ：＋ または Ctrl＋T / New note: ＋ or Ctrl＋T" Margin="0,10,0,0" Foreground="#526173" HorizontalAlignment="Center"/>
    </StackPanel>
    <ScrollViewer x:Name="ImageViewer" Visibility="Collapsed" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="White" PreviewMouseWheel="ImageWheel"><Image x:Name="ReaderImage" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center" MouseLeftButtonDown="ImageClick"/></ScrollViewer>
    <Grid x:Name="TextEditorArea" Visibility="Collapsed">
