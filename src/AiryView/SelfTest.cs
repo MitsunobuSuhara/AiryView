@@ -13,6 +13,110 @@ public static class SelfTest
         Results.Add("PASS: " + name);
     }
     private static bool Near(double a, double b, double tolerance = .05) => Math.Abs(a - b) <= tolerance;
+    public static async Task RunOpenBenchmarkAsync()
+    {
+        Directory.CreateDirectory("artifacts");
+        var rows = new List<string> { "pages,run,dimensions_ms,open_visible_ms" };
+        foreach (int pages in new[] { 5, 100 })
+        {
+            string path = System.IO.Path.GetFullPath($"artifacts/open-benchmark-{pages}.pdf");
+            CreateFixture(path, pages, 2000);
+            // 同じ入力・画面寸法で比較。最初の1回はJITとディスクキャッシュのウォームアップ。
+            for (int run = 0; run <= 5; run++)
+            {
+                var watch = Stopwatch.StartNew();
+                using (var doc = new PdfDocument(path))
+                    for (int i = 0; i < doc.Count; i++) _ = doc.SizeMm(i);
+                double dimensions = watch.Elapsed.TotalMilliseconds;
+                var window = new MainWindow { Width = 1180, Height = 840, WindowState = WindowState.Normal };
+                window.Show(); window.UpdateLayout();
+                watch.Restart();
+                await window.OpenPathsAsync(new[] { path });
+                double open = watch.Elapsed.TotalMilliseconds;
+                Check(window.TabCountForTest == 1, "速度測定のPDFが開く");
+                window.Close();
+                if (run > 0) rows.Add(FormattableString.Invariant($"{pages},{run},{dimensions:F3},{open:F3}"));
+            }
+        }
+        File.WriteAllLines("artifacts/open-benchmark.csv", rows);
+    }
+    public static async Task RunMediaBenchmarkAsync()
+    {
+        Directory.CreateDirectory("artifacts/media-benchmark");
+        byte[] pixels = new byte[1600 * 1200 * 4];
+        for (int i = 0; i < pixels.Length; i += 4)
+        {
+            int x = i / 4 % 1600, y = i / 4 / 1600;
+            pixels[i] = (byte)(x + y); pixels[i + 1] = (byte)(x / 3); pixels[i + 2] = (byte)(y / 2); pixels[i + 3] = 255;
+        }
+        var bitmap = BitmapSource.Create(1600, 1200, 96, 96, PixelFormats.Bgra32, null, pixels, 6400);
+        foreach (var entry in new (string Extension, BitmapEncoder Encoder)[] {
+            ("jpg", new JpegBitmapEncoder()), ("png", new PngBitmapEncoder()), ("bmp", new BmpBitmapEncoder()),
+            ("tiff", new TiffBitmapEncoder()), ("gif", new GifBitmapEncoder()) })
+        {
+            entry.Encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var file = File.Create($"artifacts/media-benchmark/sample.{entry.Extension}"); entry.Encoder.Save(file);
+        }
+        using (var sk = SkiaSharp.SKBitmap.Decode("artifacts/media-benchmark/sample.png"))
+        using (var image = SkiaSharp.SKImage.FromBitmap(sk))
+        using (var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Webp, 90))
+            File.WriteAllBytes("artifacts/media-benchmark/sample.webp", data.ToArray());
+        File.Copy("assets/icons/AiryView.ico", "artifacts/media-benchmark/sample.ico", true);
+        File.WriteAllText("artifacts/media-benchmark/sample.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='800' height='600' fill='#0088cc'/><circle cx='400' cy='300' r='200' fill='#ee9900' opacity='.5'/></svg>");
+        File.WriteAllText("artifacts/media-benchmark/sample.txt", string.Join("\n", Enumerable.Repeat("速度確認用の日本語文章です。", 2000)));
+        File.WriteAllText("artifacts/media-benchmark/sample.md", string.Join("\n\n", Enumerable.Repeat("## 見出し\n\n日本語の**文章**です。", 100)));
+        var rows = new List<string> { "format,run,open_layout_ms" };
+        foreach (string ext in new[] { "jpg", "png", "bmp", "tiff", "gif", "ico", "webp", "svg", "txt", "md" })
+            for (int run = 0; run <= 5; run++)
+            {
+                var window = new MainWindow { Width = 1180, Height = 840, WindowState = WindowState.Normal };
+                window.Show(); window.UpdateLayout();
+                var watch = Stopwatch.StartNew();
+                await window.OpenPathsAsync(new[] { System.IO.Path.GetFullPath($"artifacts/media-benchmark/sample.{ext}") });
+                window.UpdateLayout();
+                await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+                double elapsed = watch.Elapsed.TotalMilliseconds;
+                Check(window.TabCountForTest == 1, ext + "の速度測定で開く");
+                window.Close();
+                if (run > 0) rows.Add(FormattableString.Invariant($"{ext},{run},{elapsed:F3}"));
+            }
+        File.WriteAllLines("artifacts/media-benchmark.csv", rows);
+        var profiled = new JpegBitmapEncoder();
+        var highDpi = BitmapSource.Create(1600, 1200, 144, 144, PixelFormats.Bgra32, null, pixels, 6400);
+        profiled.Frames.Add(BitmapFrame.Create(highDpi, null, null,
+            new System.Collections.ObjectModel.ReadOnlyCollection<ColorContext>(new[] { new ColorContext(PixelFormats.Bgra32) })));
+        using (var file = File.Create("artifacts/media-benchmark/sample.profile.jpg")) profiled.Save(file);
+        // ストリームを閉じた後も元の画素・透過・解像度を維持することを確認。
+        foreach (string ext in new[] { "jpg", "png", "bmp", "tiff", "gif", "ico", "webp", "profile.jpg" })
+        {
+            byte[] bytes = File.ReadAllBytes($"artifacts/media-benchmark/sample.{ext}");
+            var actual = await MainWindow.DecodeImageAsync(bytes, "." + ext);
+            byte[] referenceBytes = bytes;
+            if (ext == "webp")
+            {
+                using var sk = SkiaSharp.SKBitmap.Decode(bytes);
+                using var image = SkiaSharp.SKImage.FromBitmap(sk);
+                using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+                referenceBytes = data.ToArray();
+            }
+            var reference = new BitmapImage(); reference.BeginInit(); reference.CacheOption = BitmapCacheOption.OnLoad;
+            using (var stream = new MemoryStream(referenceBytes)) { reference.StreamSource = stream; reference.EndInit(); }
+            Check(actual.IsFrozen && actual.PixelWidth == reference.PixelWidth && actual.PixelHeight == reference.PixelHeight, ext + "寸法とスレッド間共有");
+            Check(Near(actual.DpiX, reference.DpiX) && Near(actual.DpiY, reference.DpiY), ext + "解像度を維持");
+            byte[] Pixels(BitmapSource source)
+            {
+                var converted = new FormatConvertedBitmap(source, PixelFormats.Pbgra32, null, 0);
+                var result = new byte[converted.PixelWidth * converted.PixelHeight * 4];
+                converted.CopyPixels(result, converted.PixelWidth * 4, 0); return result;
+            }
+            Check(Pixels(actual).SequenceEqual(Pixels(reference)), ext + "従来のデコードと全画素一致");
+        }
+        var transparent = await MainWindow.DecodeImageAsync(Encoding.UTF8.GetBytes("<svg xmlns='http://www.w3.org/2000/svg' width='2' height='1'><rect width='1' height='1' fill='#ff0000' opacity='.5'/></svg>"), ".svg");
+        var rgba = new byte[transparent.PixelWidth * transparent.PixelHeight * 4];
+        transparent.CopyPixels(rgba, transparent.PixelWidth * 4, 0);
+        Check(rgba[0] == 0 && rgba[1] == 0 && rgba[2] == rgba[3] && Math.Abs(rgba[3] - 128) <= 1 && rgba[7 * 4 + 3] == 0, "SVGの半透明赤と透明領域を保持");
+        File.WriteAllLines("artifacts/media-validation.txt", Results);
+    }
     public static async Task RunUiAsync()
     {
         Directory.CreateDirectory("artifacts");
@@ -251,6 +355,25 @@ public static class SelfTest
         viewer.ScrollToTop(); await Task.Delay(600); window.UpdateLayout();
         Check(pageNumber.Text == "1", "スクロールで先頭ページへ戻れる");
         using var doc = new PdfDocument(fixture);
+        string geometryFixture = "artifacts/page-geometry.pdf";
+        CreateFixture(geometryFixture, 4, mixedGeometry: true);
+        using (var geometry = new PdfDocument(geometryFixture))
+        {
+            for (int i = 0; i < geometry.Count; i++)
+            {
+                void CheckSize()
+                {
+                    Size actual = geometry.SizeMm(i), expected = geometry.LoadedSizeMmForTest(i);
+                    Check(Near(actual.Width, expected.Width) && Near(actual.Height, expected.Height), "CropBox・継承寸法・回転の一致 " + i);
+                    Check(geometry.SizeMm(i) == actual, "寸法の再取得 " + i);
+                }
+                CheckSize(); geometry.Rotate(i, 1); CheckSize(); geometry.ResetRotation(i); CheckSize();
+            }
+            try { geometry.SizeMm(-1); Check(false, "負のページ"); } catch (ArgumentOutOfRangeException) { }
+            try { geometry.SizeMm(geometry.Count); Check(false, "ページ上限"); } catch (ArgumentOutOfRangeException) { }
+            geometry.Dispose();
+            try { geometry.SizeMm(0); Check(false, "解放済みの寸法"); } catch (ObjectDisposedException) { }
+        }
         var print = new PrintWindow(doc, 0, null) { Owner = window };
         print.Show();
         await Task.Delay(1200);
@@ -608,17 +731,19 @@ public static class SelfTest
         using var stream = File.Create(path); encoder.Save(stream);
     }
 
-    public static void CreateFixture(string path, int count)
+    public static void CreateFixture(string path, int count, int extraShapes = 0, bool mixedGeometry = false)
     {
         var objects = new List<string>();
         objects.Add("<< /Type /Catalog /Pages 2 0 R >>");
-        objects.Add($"<< /Type /Pages /Count {count} /Kids [{string.Join(' ', Enumerable.Range(0, count).Select(i => $"{3 + i * 2} 0 R"))}] >>");
+        objects.Add($"<< /Type /Pages /MediaBox [0 0 595.2756 841.8898] /Count {count} /Kids [{string.Join(' ', Enumerable.Range(0, count).Select(i => $"{3 + i * 2} 0 R"))}] >>");
         for (int i = 0; i < count; i++)
         {
-            objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.2756 841.8898] /Contents {4 + i * 2} 0 R >>");
+            string geometry = mixedGeometry ? $"/CropBox [10 20 {400 + i * 25} 700] /Rotate {i % 4 * 90}" : "/MediaBox [0 0 595.2756 841.8898]";
+            objects.Add($"<< /Type /Page /Parent 2 0 R {geometry} /Contents {4 + i * 2} 0 R >>");
             // 横・縦100mmの基準線と、ページごとに数が変わる識別用の四角。
             string content = "0 0 0 RG 0.8 w 56.6929 283.4646 m 340.1575 283.4646 l S 56.6929 283.4646 m 56.6929 566.9292 l S\n";
             for (int n = 0; n <= i; n++) content += $"{60 + 22 * n} 730 14 14 re f\n";
+            if (extraShapes > 0) content += string.Join("\n", Enumerable.Range(0, extraShapes).Select(n => $"{n % 100 * 5} {n / 100 * 5} 2 2 re f")) + "\n";
             objects.Add($"<< /Length {Encoding.ASCII.GetByteCount(content)} >>\nstream\n{content}endstream");
         }
         using var stream = File.Create(path); var offsets = new List<long>();

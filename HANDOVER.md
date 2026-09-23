@@ -1,7 +1,9 @@
 # AiryView 開発引き継ぎ
 
-更新日: 2026-09-17
-開発場所: C:\dev\AiryView
+更新日: 2026-09-24
+開発場所: C:\dev\projects\utilities\AiryView
+
+現在の最新版は2.0.14。2026-09-24にProgram Filesへ導入し、ビルド成果物とのDLLハッシュ一致を確認。速度改善の検証と制約は末尾およびdocs/PERFORMANCE-2.0.14.mdを参照。以下の旧版記録は履歴。
 
 
 ## 最新状態：デスクトップ版1.1（2026-09-14）
@@ -447,3 +449,13 @@ GitHub Release `v1.4.3` を公開。添付は `AiryReader-1.4.3-20260916-104817.
 全ビルド・自己テスト・UIテスト・PDF補助機能テストに合格。寸法確認PDFはA4縦、A4横、A3横、A4縦の実寸を維持。紹介PDFは6ページを再生成し、全ページ描画・旧名不在・文字範囲を確認。GitHubリポジトリは `MitsunobuSuhara/AiryView` へ、正式なローカル開発場所は `C:\dev\AiryView` へ変更済み。GitHub Release `v2.0.0` には `AiryView-2.0.0-20260917-051957.zip` を公開し、GitHub側のSHA256がローカル生成物と一致することを確認した。
 
 旧作業場所 `C:\dev\airyPDF` には未コミットの変更が残っているため、データ保護のため削除・改名していない。現在のCodexタスクが使用中の `C:\dev\AiryReader` も終了まではWindowsにより完全改名できないため、内容を `C:\dev\AiryView` へ統合済み。今後の作業は必ず `C:\dev\AiryView` を使用する。
+## 2.0.14 表示速度改善（2026-09-24）
+PDF寸法取得の本文解析・繰返し取得、WebP/SVGのPNG中間変換、文章の二重読込とTXTの不要なFlowDocument作成を削減。ICC色補正と原本解像度は維持。合成データのウォーム計測でPDF100ページ206→32ms、WebP244→20ms、SVG274→30ms。JPEG・文章等は明確な改善なし。全形式が同じ倍率で速くなるとは扱わない。
+詳細・全形式の数値・計測範囲はdocs/PERFORMANCE-2.0.14.md。自己テスト42件・UI149件・画素一致等の追加検証成功。2.0.14の.NET同梱publish完了。NuGet脆弱性情報取得のNU1900警告あり。起動先への反映はこの節の追記で確認する。既存のscripts/create-airyview-story.pyの変更は今回の速度改善と無関係のため保持。
+2026-09-24 07:06 管理者確認の再表示後、2.0.14のインストール成功。C:\Program Files\AiryView\AiryView.dllのバージョン2.0.14.0、artifacts/appとのSHA256一致、install-result.txtの更新を確認。上記の管理者確認待ちは解消済み。
+
+### 軽量保存 @@@（2026-09-24）
+- 当セッションの速度改善・テスト・計測記録をmainへ保存する。既存のscripts/create-airyview-story.pyの変更は対象外として保持。
+- tmp/pdfsは当セッション以前のもののため保持。今回のログ・比較CSV・合成テストデータは検証証跡としてartifactsへ保持し、削除した一時ファイルはない。
+- 次は実際の利用ファイルで体感を確認。追加改善は遅い形式・ファイルを特定して計測してから行う。全形式の一律高速化・コールド起動の改善は未確認。
+- GitHub Releaseの追加公開は実施していない。共通引継ぎはdev-config/handover/AiryView/2026-09-24.md。

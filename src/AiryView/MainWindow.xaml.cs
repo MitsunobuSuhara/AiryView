@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         public bool ShowEditor => Editable || IsMarkdown && SourceMode;
         public bool Dirty;
         public double Zoom = 1;
-        public byte[]? FileHash = File.Exists(path) ? SHA256.HashData(File.ReadAllBytes(path)) : null;
+        public byte[]? FileHash;
     }
     private TabState? Current => (Tabs.SelectedItem as TabItem)?.Tag as TabState;
     private TextTabState? CurrentText => (Tabs.SelectedItem as TabItem)?.Tag as TextTabState;
@@ -235,8 +235,9 @@ public partial class MainWindow : Window
                 {
                     var loaded = await ReadTextAsync(path);
                     string text = loaded.Text;
-                    var document = extension == ".txt" ? LightweightTextRenderer.BuildPlain(text) : LightweightTextRenderer.Build(text);
-                    var reader = new TextTabState(path, document, text, loaded.Encoding, extension == ".txt");
+                    // TXTはTextBoxで表示するため、印刷用の全行FlowDocumentを先に作らない。
+                    var document = extension == ".txt" ? LightweightTextRenderer.BuildPlain("") : LightweightTextRenderer.Build(text);
+                    var reader = new TextTabState(path, document, text, loaded.Encoding, extension == ".txt") { FileHash = loaded.Hash };
                     var readerTab = CreateTab(System.IO.Path.GetFileName(path), path, reader);
                     opening = true; Tabs.Items.Add(readerTab); Tabs.SelectedItem = readerTab; opening = false;
                     await RenderCurrent(); AddRecentFile(path); continue;
@@ -289,8 +290,15 @@ public partial class MainWindow : Window
         var decoder = BitmapDecoder.Create(probe, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None);
         var frame = decoder.Frames[0];
         if ((long)frame.PixelWidth * frame.PixelHeight > MaxImagePixels) throw new IOException("画像の画素数が大きすぎます（上限2億画素）。");
-        var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        using (var stream = new MemoryStream(bytes)) { bitmap.StreamSource = stream; bitmap.EndInit(); }
+        // ICC付き画像はWPF標準の色補正を維持する。
+        if (frame.ColorContexts is { Count: > 0 })
+        {
+            var corrected = new BitmapImage(); corrected.BeginInit(); corrected.CacheOption = BitmapCacheOption.OnLoad;
+            using (var stream = new MemoryStream(bytes)) { corrected.StreamSource = stream; corrected.EndInit(); }
+            corrected.Freeze(); return corrected;
+        }
+        // 寸法確認に使ったデコーダーを再利用し、同じ画像を開き直さない。
+        var bitmap = new CachedBitmap(frame, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
         bitmap.Freeze(); return bitmap;
     }
     private static BitmapSource LoadSkiaBitmap(byte[] bytes)
@@ -299,11 +307,16 @@ public partial class MainWindow : Window
         using var codec = SKCodec.Create(data) ?? throw new IOException("画像形式を読み込めませんでした。");
         var info = codec.Info;
         if (info.Width <= 0 || info.Height <= 0 || (long)info.Width * info.Height > MaxImagePixels) throw new IOException("画像の画素数が大きすぎます（上限2億画素）。");
-        using var bitmap = new SKBitmap(info);
+        using var bitmap = new SKBitmap(new SKImageInfo(info.Width, info.Height, SKColorType.Bgra8888, SKAlphaType.Premul));
         if (codec.GetPixels(bitmap.Info, bitmap.GetPixels()) != SKCodecResult.Success) throw new IOException("画像の読み込みに失敗しました。");
-        using var image = SKImage.FromBitmap(bitmap);
-        using var png = image.Encode(SKEncodedImageFormat.Png, 100);
-        return LoadWpfBitmap(png.ToArray());
+        return CopySkiaBitmap(bitmap);
+    }
+    private static BitmapSource CopySkiaBitmap(SKBitmap bitmap)
+    {
+        // PNGへの圧縮・再展開を挟まず、同じ画素をWPFへコピーする。
+        var result = BitmapSource.Create(bitmap.Width, bitmap.Height, 96, 96, PixelFormats.Pbgra32, null,
+            bitmap.GetPixels(), checked(bitmap.RowBytes * bitmap.Height), bitmap.RowBytes);
+        result.Freeze(); return result;
     }
     internal static (int Width, int Height) SvgRasterSize(double width, double height, double requestedScale = 4)
     {
@@ -324,19 +337,27 @@ public partial class MainWindow : Window
         var picture = svg.Picture ?? throw new IOException("SVGの図形を読み込めませんでした。");
         SKRect bounds = picture.CullRect;
         var (width, height) = SvgRasterSize(bounds.Width, bounds.Height, requestedWidth.HasValue ? requestedWidth.Value / bounds.Width : 4);
-        using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul)) ?? throw new IOException("SVG用の表示領域を作成できませんでした。");
-        surface.Canvas.Clear(SKColors.Transparent);
-        surface.Canvas.Scale(width / bounds.Width, height / bounds.Height);
-        surface.Canvas.Translate(-bounds.Left, -bounds.Top);
-        surface.Canvas.DrawPicture(picture);
-        using var image = surface.Snapshot();
-        using var png = image.Encode(SKEncodedImageFormat.Png, 100);
-        return LoadWpfBitmap(png.ToArray());
+        using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        canvas.Scale(width / bounds.Width, height / bounds.Height);
+        canvas.Translate(-bounds.Left, -bounds.Top);
+        canvas.DrawPicture(picture);
+        canvas.Flush();
+        return CopySkiaBitmap(bitmap);
     }
-    private static async Task<(string Text, Encoding Encoding)> ReadTextAsync(string path)
+    private static async Task<(string Text, Encoding Encoding, byte[] Hash)> ReadTextAsync(string path)
     {
         if (new FileInfo(path).Length > MaxTextBytes) throw new IOException("文章ファイルが大きすぎます（上限64MB）。");
         byte[] bytes = await File.ReadAllBytesAsync(path);
+        return await Task.Run(() =>
+        {
+            var decoded = DecodeText(bytes);
+            return (decoded.Text, decoded.Encoding, SHA256.HashData(bytes));
+        });
+    }
+    private static (string Text, Encoding Encoding) DecodeText(byte[] bytes)
+    {
         if (bytes.AsSpan().StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) return (new UTF8Encoding(true, true).GetString(bytes, 3, bytes.Length - 3), new UTF8Encoding(true));
         if (bytes.AsSpan().StartsWith(new byte[] { 0xFF, 0xFE, 0x00, 0x00 })) return (new UTF32Encoding(false, true, true).GetString(bytes, 4, bytes.Length - 4), new UTF32Encoding(false, true));
         if (bytes.AsSpan().StartsWith(new byte[] { 0x00, 0x00, 0xFE, 0xFF })) return (new UTF32Encoding(true, true, true).GetString(bytes, 4, bytes.Length - 4), new UTF32Encoding(true, true));
@@ -941,7 +962,7 @@ public partial class MainWindow : Window
         state.Dirty = state.LiveText != state.Text; UpdateTextTabTitle(state);
         UpdateTextSmartStatus();
     }
-    private void TextEditorSelectionChanged(object s, RoutedEventArgs e) => UpdateTextSmartStatus();
+    private void TextEditorSelectionChanged(object s, RoutedEventArgs e) { if (!opening) UpdateTextSmartStatus(); }
     private void UpdateTextSmartStatus()
     {
         if (CurrentText is not { ShowEditor: true } state)
@@ -958,8 +979,9 @@ public partial class MainWindow : Window
         }
         else
         {
-            int line = Math.Max(0, TextEditor.GetLineIndexFromCharacterIndex(TextEditor.CaretIndex));
-            int lineStart = TextEditor.GetCharacterIndexFromLineIndex(line);
+            // 開いた直後の先頭位置は確定しているので、行番号のために全文をレイアウトしない。
+            int line = TextEditor.CaretIndex == 0 ? 0 : Math.Max(0, TextEditor.GetLineIndexFromCharacterIndex(TextEditor.CaretIndex));
+            int lineStart = TextEditor.CaretIndex == 0 ? 0 : TextEditor.GetCharacterIndexFromLineIndex(line);
             int column = Math.Max(0, TextEditor.CaretIndex - lineStart);
             string source = state.IsMarkdown ? "  •  ソース / Source" : "";
             TextSelectionInfo.Text = $"行 {line + 1} / Ln {line + 1}  •  列 {column + 1} / Col {column + 1}  •  {EncodingLabel(state.Encoding)}  •  {LineEndingLabel(state.LiveText)}{source}  •  折返し {(state.Wrap ? "ON" : "OFF")} / Wrap {(state.Wrap ? "ON" : "OFF")}";
@@ -1080,7 +1102,7 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.0.13\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.0.14\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)

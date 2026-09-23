@@ -14,6 +14,7 @@ public sealed class PdfDocument : IDisposable
     private Native.GetPageCallback? getPage;
     private Native.GetCurrentPageCallback? getCurrentPage;
     private GCHandle pinned;
+    private readonly Dictionary<int, Size> pageSizes = new();
     public string Path { get; }
     internal string? Password { get; }
     public bool HasSignatures { get; }
@@ -79,12 +80,25 @@ public sealed class PdfDocument : IDisposable
         }
     }
 
-    public Size SizeMm(int index) => WithPage(index, page =>
+    public Size SizeMm(int index)
     {
-        var size = new Size(Native.FPDF_GetPageWidthF(page) * 25.4 / 72, Native.FPDF_GetPageHeightF(page) * 25.4 / 72);
-        if (size.Width <= 0 || size.Height <= 0 || !double.IsFinite(size.Width + size.Height)) throw new IOException("ページ寸法が不正です。");
-        return size;
-    });
+        lock (Gate)
+        {
+            ObjectDisposedException.ThrowIf(handle == IntPtr.Zero, this);
+            if (index < 0 || index >= Count) throw new ArgumentOutOfRangeException(nameof(index));
+            if (pageSizes.TryGetValue(index, out var cached)) return cached;
+            // レイアウト用の寸法取得では本文・画像・フォームを解析しない。
+            if (Native.FPDF_GetPageSizeByIndexF(handle, index, out var points) == 0)
+                throw new IOException($"{index + 1}ページの寸法を読み込めません。");
+            var size = new Size(points.Width * 25.4 / 72, points.Height * 25.4 / 72);
+            if (size.Width <= 0 || size.Height <= 0 || !double.IsFinite(size.Width + size.Height)) throw new IOException("ページ寸法が不正です。");
+            pageSizes[index] = size;
+            return size;
+        }
+    }
+
+    internal Size LoadedSizeMmForTest(int index) => WithPage(index, page =>
+        new Size(Native.FPDF_GetPageWidthF(page) * 25.4 / 72, Native.FPDF_GetPageHeightF(page) * 25.4 / 72));
 
     public BitmapSource Render(int index, int width, int height, bool lcdText = false) => WithPage(index, page =>
     {
@@ -134,14 +148,14 @@ public sealed class PdfDocument : IDisposable
     public void Rotate(int index, int delta)
     {
         if (!CanEdit) throw new InvalidOperationException("このPDFは編集が制限されています。");
-        WithPage(index, page => { Native.FPDFPage_SetRotation(page, (Native.FPDFPage_GetRotation(page) + delta + 4) % 4); return true; });
+        WithPage(index, page => { Native.FPDFPage_SetRotation(page, (Native.FPDFPage_GetRotation(page) + delta + 4) % 4); pageSizes.Remove(index); return true; });
         Dirty = true;
     }
 
     public void ResetRotation(int index)
     {
         if (!CanEdit) throw new InvalidOperationException("このPDFは編集が制限されています。");
-        WithPage(index, page => { Native.FPDFPage_SetRotation(page, 0); return true; });
+        WithPage(index, page => { Native.FPDFPage_SetRotation(page, 0); pageSizes.Remove(index); return true; });
         Dirty = true;
     }
     public void SaveCopy(string destination, bool markClean = true)
@@ -254,6 +268,8 @@ public sealed class PdfDocument : IDisposable
         [DllImport(Dll)] internal static extern void FPDF_CloseDocument(IntPtr document);
         [DllImport(Dll)] internal static extern float FPDF_GetPageWidthF(IntPtr page);
         [DllImport(Dll)] internal static extern float FPDF_GetPageHeightF(IntPtr page);
+        [StructLayout(LayoutKind.Sequential)] internal struct PageSize { public float Width, Height; }
+        [DllImport(Dll)] internal static extern int FPDF_GetPageSizeByIndexF(IntPtr document, int index, out PageSize size);
         [DllImport(Dll)] internal static extern int FPDFPage_GetRotation(IntPtr page);
         [DllImport(Dll)] internal static extern void FPDFPage_SetRotation(IntPtr page, int rotate);
         [DllImport(Dll)] internal static extern IntPtr FPDFBitmap_Create(int width, int height, int alpha);
