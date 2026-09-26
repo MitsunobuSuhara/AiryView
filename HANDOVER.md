@@ -1,9 +1,9 @@
 # AiryView 開発引き継ぎ
 
-更新日: 2026-09-24
+更新日: 2026-09-26
 開発場所: C:\dev\projects\utilities\AiryView
 
-現在の最新版は2.0.14。2026-09-24にProgram Filesへ導入し、ビルド成果物とのDLLハッシュ一致を確認。速度改善の検証と制約は末尾およびdocs/PERFORMANCE-2.0.14.mdを参照。以下の旧版記録は履歴。
+現在のビルドは2.0.15。2026-09-26の初期表示停止対策と導入結果は末尾を参照。2.0.14の速度改善の検証と制約はdocs/PERFORMANCE-2.0.14.mdを参照。以下の旧版記録は履歴。
 
 
 ## 最新状態：デスクトップ版1.1（2026-09-14）
@@ -459,3 +459,16 @@ PDF寸法取得の本文解析・繰返し取得、WebP/SVGのPNG中間変換、
 - tmp/pdfsは当セッション以前のもののため保持。今回のログ・比較CSV・合成テストデータは検証証跡としてartifactsへ保持し、削除した一時ファイルはない。
 - 次は実際の利用ファイルで体感を確認。追加改善は遅い形式・ファイルを特定して計測してから行う。全形式の一律高速化・コールド起動の改善は未確認。
 - GitHub Releaseの追加公開は実施していない。共通引継ぎはdev-config/handover/AiryView/2026-09-24.md。
+
+## 2.0.15 初期表示停止対策（2026-09-26）
+
+利用者は「たまに枠だけ出て中身が空白、マウス操作で表示される」と報告。通常・表示前読込・最小化復帰・同一ファイル再表示の入力なしテストでは元の実症状は再現しなかった。一方、Windowsの履歴登録がUIスレッド上で同期実行され、Shellの遅延で表示完了まで止まる経路を確認。1.5秒の遅延を注入した回帰テストで旧同期処理が失敗し、修正後成功した。実際の利用者の症状と同一原因と断定しない。
+
+- RecentFileHistoryで履歴登録を専用STAワーカーへ移動。順番を維持し、登録失敗でも後続を処理。待ちキュー上限64、空になったらワーカーは終了、アプリ終了を妨げない。
+- 外部起動のパイプ受信をUIから分離。部分送信の待ちを5秒で解放、終了時の受信もキャンセル。画面復帰後にファイルを開く。
+- 初期画像フィットをContextIdle待ちからLoaded優先度へ変更。Loaded・最小化解除・未完了画像のSizeChangedで再試行する。PDFもロード完了・復帰時に再描画し、未ロード・最小化中の不適切な描画を避ける。画面終了時に描画タイマーも停止。
+- --startup-testを追加しbuild.ps1 -Testに組込み。画面更新の強制や入力なしのPDF/PNG表示、WPF描画フレーム、Shell遅延・失敗、途中切断した外部受信後の復帰を確認。既存のPDF・印刷・UIテストも成功。スクリーンショットartifacts/startup-pdf-window.pngを目視確認。
+- Release・.NET同梱publish成功。NuGet脆弱性情報取得のNU1900警告のみ。生成物はartifacts/app、検証記録はartifacts/startup-test-results.txtとstartup-final-build.log。
+- 次は2.0.15のインストール反映確認と実利用での再発有無確認。GPU描画等による別原因までは今回の合成テストでは否定できない。既存scripts/create-airyview-story.pyの変更は対象外として保持。
+- WPF JumpList.ApplyはSTAを要求するがApplicationへの取付けは必須でないことを公式ソースで確認: https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Shell/JumpList.cs
+2026-09-26 18:27 インストール完了。C:\Program Files\AiryView\AiryView.dllは2.0.15.0、artifacts/appとのSHA256一致、install-result.txtの更新を確認。既存の起動プロセスは通常終了要求で閉じ、強制終了はしていない。検証合計213件（自己42・UI149・起動22）。今回の変更は未commit。

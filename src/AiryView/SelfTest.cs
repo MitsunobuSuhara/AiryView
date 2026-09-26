@@ -13,6 +13,101 @@ public static class SelfTest
         Results.Add("PASS: " + name);
     }
     private static bool Near(double a, double b, double tolerance = .05) => Math.Abs(a - b) <= tolerance;
+    public static async Task RunStartupAsync()
+    {
+        Directory.CreateDirectory("artifacts");
+        string pdf = System.IO.Path.GetFullPath("artifacts/startup-check.pdf");
+        CreateFixture(pdf, 5);
+        string png = System.IO.Path.GetFullPath("artifacts/startup-check.png");
+        byte[] pixels = Enumerable.Repeat((byte)200, 1600 * 900 * 3).ToArray();
+        SaveImage(BitmapSource.Create(1600, 900, 96, 96, PixelFormats.Bgr24, null, pixels, 1600 * 3), png);
+        foreach (string path in new[] { pdf, png })
+        foreach (string mode in new[] { "normal", "before-show", "minimized", "repeat" })
+        {
+            var window = new MainWindow { Width = 1000, Height = 760, WindowState = WindowState.Normal };
+            try
+            {
+                if (mode != "before-show") window.Show();
+                if (mode == "minimized") window.WindowState = WindowState.Minimized;
+                await window.OpenPathsAsync(new[] { path });
+                if (mode == "repeat") await window.OpenPathsAsync(new[] { path });
+                if (mode == "before-show") window.Show();
+                if (mode == "minimized") App.BringWindowToFront(window);
+                bool Ready()
+                {
+                    if (path == png) return ((Image)window.FindName("ReaderImage")).Source is BitmapSource
+                        && ((Image)window.FindName("ReaderImage")).ActualWidth > 0 && window.ActiveZoomForTest < 1;
+                    var pages = (StackPanel)window.FindName("PagesHost");
+                    return pages.Children.OfType<Grid>().FirstOrDefault()?.Children.OfType<Image>().FirstOrDefault()?.Source is BitmapSource { PixelWidth: > 100 };
+                }
+                var watch = Stopwatch.StartNew();
+                // UpdateLayoutやマウス入力で初期表示の欠落を隠さない。
+                while (!Ready() && watch.ElapsedMilliseconds < 3000) await Task.Delay(20);
+                Check(Ready(), System.IO.Path.GetExtension(path) + " " + mode + " は入力なしで初期表示が完了");
+                Check(window.TabCountForTest == 1, mode + " で重複タブを作らない");
+                if (mode == "normal")
+                {
+                    var frame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    EventHandler presented = (_, _) => frame.TrySetResult();
+                    CompositionTarget.Rendering += presented;
+                    try { await frame.Task.WaitAsync(TimeSpan.FromSeconds(3)); }
+                    finally { CompositionTarget.Rendering -= presented; }
+                    Capture(window, path == pdf ? "artifacts/startup-pdf-window.png" : "artifacts/startup-image-window.png");
+                    Check(true, System.IO.Path.GetExtension(path) + " は入力なしでWPF描画フレームが進む");
+                }
+            }
+            finally { window.Close(); }
+        }
+        var slowWindow = new MainWindow { RecentHistory = new RecentFileHistory(_ => System.Threading.Thread.Sleep(1500)) };
+        try
+        {
+            slowWindow.Show();
+            var watch = Stopwatch.StartNew();
+            await slowWindow.OpenPathsAsync(new[] { png });
+            Check(watch.ElapsedMilliseconds < 1000, "Windows履歴登録が1.5秒止まってもファイル表示を待たせない");
+        }
+        finally { slowWindow.Close(); }
+        var registered = new List<string>();
+        var historyComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var history = new RecentFileHistory(path =>
+        {
+            if (path == "failure") throw new IOException("Injected shell error");
+            lock (registered) registered.Add(path);
+            if (path == "second") historyComplete.TrySetResult();
+        });
+        history.Enqueue("first"); history.Enqueue("failure"); history.Enqueue("second");
+        await historyComplete.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Check(registered.SequenceEqual(new[] { "first", "second" }), "履歴登録失敗後も順番を保って後続を登録");
+
+        var pipeWindow = new MainWindow(); pipeWindow.Show();
+        using var cancellation = new System.Threading.CancellationTokenSource();
+        string pipeName = "AiryView.StartupTest." + Guid.NewGuid().ToString("N");
+        var listener = App.StartFileListener(pipeWindow, cancellation.Token, pipeName);
+        try
+        {
+            using (var stalled = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.Out, System.IO.Pipes.PipeOptions.Asynchronous))
+            {
+                await stalled.ConnectAsync(3000);
+                using var writer = new BinaryWriter(stalled, Encoding.UTF8, leaveOpen: true);
+                writer.Write(1); writer.Flush();
+                await Task.Delay(100);
+                // ファイル名の送信が止まっていても、同じウィンドウで別の読込と描画が進む。
+                await pipeWindow.OpenPathsAsync(new[] { png }).WaitAsync(TimeSpan.FromSeconds(3));
+                Check(pipeWindow.CurrentPathForTest == png, "外部起動の送信待ち中もUIでファイルを開ける");
+            }
+            using (var next = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.Out, System.IO.Pipes.PipeOptions.Asynchronous))
+            {
+                await next.ConnectAsync(3000);
+                using var writer = new BinaryWriter(next, Encoding.UTF8, leaveOpen: true);
+                writer.Write(1); writer.Write(pdf); writer.Flush();
+            }
+            var watch = Stopwatch.StartNew();
+            while (pipeWindow.CurrentPathForTest != pdf && watch.ElapsedMilliseconds < 3000) await Task.Delay(20);
+            Check(pipeWindow.CurrentPathForTest == pdf, "途中で切れた送信の次の外部起動を受信");
+        }
+        finally { cancellation.Cancel(); await listener.WaitAsync(TimeSpan.FromSeconds(3)); pipeWindow.Close(); }
+        File.WriteAllLines("artifacts/startup-test-results.txt", Results);
+    }
     public static async Task RunOpenBenchmarkAsync()
     {
         Directory.CreateDirectory("artifacts");

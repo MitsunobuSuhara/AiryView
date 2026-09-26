@@ -53,7 +53,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer svgTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private bool svgRendering;
     private int svgRequestVersion;
-    private readonly DispatcherTimer zoomTimer = new() { Interval = TimeSpan.FromMilliseconds(140) };
+    private readonly DispatcherTimer zoomTimer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(140) };
     private sealed class PageView
     {
         public Grid Surface = new() { Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 24), UseLayoutRounding = true, SnapsToDevicePixels = true };
@@ -135,7 +135,7 @@ public partial class MainWindow : Window
     private readonly List<string> closedPaths = [];
     internal static bool SuppressRecentFilesForTest;
     internal static string? LastRecentFileForTest;
-    private static bool recentJumpListReady;
+    internal RecentFileHistory RecentHistory { get; set; } = RecentFileHistory.Shared;
     private const long MaxTextBytes = 64L * 1024 * 1024;
     private const long MaxImageBytes = 256L * 1024 * 1024;
     private const long MaxImagePixels = 200_000_000;
@@ -146,7 +146,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         var icon = BitmapDecoder.Create(new Uri("pack://application:,,,/Assets/icon.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
         WelcomeCrane.Source = icon.Frames.OrderByDescending(frame => frame.PixelWidth).First();
-        Closed += (_, _) => { windowClosed = true; svgTimer.Stop(); ++svgRequestVersion; };
+        Closed += (_, _) => { windowClosed = true; svgTimer.Stop(); zoomTimer.Stop(); ++svgRequestVersion; ++renderVersion; };
+        Loaded += (_, _) => QueueInitialDisplay();
+        StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) QueueInitialDisplay(); };
+        ImageViewer.SizeChanged += (_, _) => { if (CurrentImage is { InitialFitComplete: false }) QueueInitialDisplay(); };
         SourceInitialized += (_, _) => ApplyDarkTitleBar();
         WindowPreferences.Restore(this);
         svgTimer.Tick += async (_, _) => await RefreshSvgAsync();
@@ -196,22 +199,13 @@ public partial class MainWindow : Window
         opening = true; Tabs.Items.Add(tab); Tabs.SelectedItem = tab; opening = false;
         await RenderCurrent(); TextEditor.Focus();
     }
-    private static void AddRecentFile(string path)
+    private void AddRecentFile(string path)
     {
         LastRecentFileForTest = path;
-        if (SuppressRecentFilesForTest) return;
+        if (SuppressRecentFilesForTest && ReferenceEquals(RecentHistory, RecentFileHistory.Shared)) return;
         try
         {
-            if (!recentJumpListReady)
-            {
-                var list = System.Windows.Shell.JumpList.GetJumpList(Application.Current) ?? new System.Windows.Shell.JumpList();
-                list.ShowRecentCategory = true;
-                list.ShowFrequentCategory = false;
-                System.Windows.Shell.JumpList.SetJumpList(Application.Current, list);
-                list.Apply();
-                recentJumpListReady = true;
-            }
-            System.Windows.Shell.JumpList.AddToRecentCategory(path);
+            RecentHistory.Enqueue(path);
         }
         catch { }
     }
@@ -300,6 +294,27 @@ public partial class MainWindow : Window
         // 寸法確認に使ったデコーダーを再利用し、同じ画像を開き直さない。
         var bitmap = new CachedBitmap(frame, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
         bitmap.Freeze(); return bitmap;
+    }
+    private bool initialDisplayQueued;
+    private void QueueInitialDisplay()
+    {
+        if (windowClosed || initialDisplayQueued) return;
+        initialDisplayQueued = true;
+        _ = Dispatcher.InvokeAsync(async () =>
+        {
+            initialDisplayQueued = false;
+            if (windowClosed || !IsLoaded || WindowState == WindowState.Minimized) return;
+            CompleteInitialImageFit();
+            if (Current != null) await RenderVisible();
+        }, DispatcherPriority.Loaded);
+    }
+    private void CompleteInitialImageFit()
+    {
+        if (CurrentImage is not { InitialFitComplete: false } image || !IsLoaded || WindowState == WindowState.Minimized) return;
+        image.InitialFitComplete = FitImageForInitialDisplay(image);
+        if (!image.InitialFitComplete) return;
+        if (!ZoomText.IsKeyboardFocusWithin) ZoomText.Text = (image.Zoom * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        UpdateNonPdfStatus();
     }
     private static BitmapSource LoadSkiaBitmap(byte[] bytes)
     {
@@ -426,14 +441,7 @@ public partial class MainWindow : Window
             ApplyImageLayout(image);
             if (!image.InitialFitComplete)
             {
-                _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
-                {
-                    if (!ReferenceEquals(CurrentImage, image)) return;
-                    image.InitialFitComplete = FitImageForInitialDisplay(image);
-                    if (!image.InitialFitComplete) return;
-                    if (!ZoomText.IsKeyboardFocusWithin) ZoomText.Text = (image.Zoom * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-                    UpdateNonPdfStatus();
-                }));
+                QueueInitialDisplay();
             }
         }
         if (!ZoomText.IsKeyboardFocusWithin && (state != null || textDocument != null || image != null)) ZoomText.Text = (ActiveZoom * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
@@ -530,7 +538,7 @@ public partial class MainWindow : Window
     private async Task RenderVisible()
     {
         int version = ++renderVersion;
-        if (Current is not { } state) return;
+        if (windowClosed || !IsLoaded || WindowState == WindowState.Minimized || Current is not { } state) return;
         try
         {
             // 全ページの画像を保持せず、画面付近だけ描画して大きなPDFのメモリを抑える。
@@ -1102,7 +1110,7 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.0.14\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.0.15\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)

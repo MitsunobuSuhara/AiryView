@@ -18,12 +18,12 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        if (e.Args.Contains("--media-benchmark") || e.Args.Contains("--open-benchmark") || e.Args.Contains("--self-test") || e.Args.Contains("--ui-test"))
+        if (e.Args.Contains("--startup-test") || e.Args.Contains("--media-benchmark") || e.Args.Contains("--open-benchmark") || e.Args.Contains("--self-test") || e.Args.Contains("--ui-test"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             AiryView.MainWindow.SuppressRecentFilesForTest = true;
             if (File.Exists("artifacts/test-failure.txt")) File.Delete("artifacts/test-failure.txt");
-            try { if (e.Args.Contains("--media-benchmark")) await SelfTest.RunMediaBenchmarkAsync(); else if (e.Args.Contains("--open-benchmark")) await SelfTest.RunOpenBenchmarkAsync(); else if (e.Args.Contains("--ui-test")) await SelfTest.RunUiAsync(); else SelfTest.Run(); Shutdown(0); }
+            try { if (e.Args.Contains("--startup-test")) await SelfTest.RunStartupAsync(); else if (e.Args.Contains("--media-benchmark")) await SelfTest.RunMediaBenchmarkAsync(); else if (e.Args.Contains("--open-benchmark")) await SelfTest.RunOpenBenchmarkAsync(); else if (e.Args.Contains("--ui-test")) await SelfTest.RunUiAsync(); else SelfTest.Run(); Shutdown(0); }
             catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
             return;
         }
@@ -78,7 +78,7 @@ public partial class App : System.Windows.Application
         var window = new MainWindow();
         MainWindow = window;
         pipeCancellation = new CancellationTokenSource();
-        _ = ListenForFilesAsync(window, pipeCancellation.Token);
+        _ = StartFileListener(window, pipeCancellation.Token);
         window.Closed += (_, _) => { pipeCancellation.Cancel(); instanceMutex?.ReleaseMutex(); instanceMutex?.Dispose(); instanceMutex = null; };
         window.Show();
         if (files.Length > 0) window.OpenPaths(files);
@@ -115,26 +115,36 @@ public partial class App : System.Windows.Application
         if (handle != IntPtr.Zero) SetForegroundWindow(handle);
         window.Focus();
     }
-    private async Task ListenForFilesAsync(MainWindow window, CancellationToken cancellationToken)
+    internal static Task StartFileListener(MainWindow window, CancellationToken cancellationToken, string pipeName = InstancePipeName) =>
+        Task.Run(() => ListenForFilesAsync(window, cancellationToken, pipeName));
+
+    private static async Task ListenForFilesAsync(MainWindow window, CancellationToken cancellationToken, string pipeName)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                using var pipe = new System.IO.Pipes.NamedPipeServerStream(InstancePipeName, System.IO.Pipes.PipeDirection.In, 1,
+                using var pipe = new System.IO.Pipes.NamedPipeServerStream(pipeName, System.IO.Pipes.PipeDirection.In, 1,
                     System.IO.Pipes.PipeTransmissionMode.Byte, System.IO.Pipes.PipeOptions.Asynchronous);
                 await pipe.WaitForConnectionAsync(cancellationToken);
+                // 接続元の送信待ちをUIで行わない。途中で途切れた送信も解放する。
+                using var receiveDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                receiveDeadline.CancelAfter(TimeSpan.FromSeconds(5));
+                using var abortRead = receiveDeadline.Token.Register(() => pipe.Dispose());
                 using var reader = new BinaryReader(pipe, System.Text.Encoding.UTF8, leaveOpen: true);
                 int count = Math.Clamp(reader.ReadInt32(), 0, 1000);
                 string[] files = Enumerable.Range(0, count).Select(_ => reader.ReadString()).Where(File.Exists).ToArray();
-                await Dispatcher.InvokeAsync(() =>
+                if (cancellationToken.IsCancellationRequested) break;
+                await window.Dispatcher.InvokeAsync(() =>
                 {
-                    if (files.Length > 0) window.OpenPaths(files);
+                    if (cancellationToken.IsCancellationRequested) return;
                     BringWindowToFront(window);
+                    if (files.Length > 0) window.OpenPaths(files);
                 });
             }
             catch (OperationCanceledException) { break; }
-            catch (IOException) when (!cancellationToken.IsCancellationRequested) { }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
         }
     }
 }
