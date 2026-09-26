@@ -3,7 +3,7 @@
 更新日: 2026-09-26
 開発場所: C:\dev\projects\utilities\AiryView
 
-現在の導入済みビルドは2.0.18。ページごとの用紙・向きの自動選択を追加し、GitHub公開を準備中。2026-09-26の変更・検証・公開結果は末尾を参照。印刷修正はdocs/PRINTING-2.0.18.md、起動速度はdocs/PERFORMANCE-2.0.17.mdを参照。以下の旧版記録は履歴。
+現在の導入済みビルドとGitHub最新Releaseは2.0.18。ページごとの用紙・向きの自動選択を追加。利用者の依頼で同日公開の2.0.15・2.0.17は非公開の下書きへ戻した。2026-09-26の変更・検証・公開結果は末尾を参照。印刷修正はdocs/PRINTING-2.0.18.md、起動速度はdocs/PERFORMANCE-2.0.17.mdを参照。以下の旧版記録は履歴。
 
 
 ## 最新状態：デスクトップ版1.1（2026-09-14）
@@ -514,3 +514,11 @@ PDF寸法取得の本文解析・繰返し取得、WebP/SVGのPNG中間変換、
 - 全263件（自己42・UI149・起動57・混在印刷15）成功。別途、提供PDFでも混在印刷15件を実行。原本・出力コピー・画面画像はGit外のartifactsだけに保持し、配布へ含めない。仕様と検証の詳細はdocs/PRINTING-2.0.18.md。
 - 2026-09-26 19:40:36、管理者確認を経てProgram Filesへ2.0.18を導入。DLLの版2.0.18.0、publishとのSHA256一致（9229A276E59B05DE73F702F069AF171CB5C22C17C39DF3647414D6F89D8616DD）を確認。通常ユーザーで提供PDFの29ページ表示も確認。
 - 利用者は「今日のリリースを戻し、今回だけを公開」と依頼。今日のv2.0.15・v2.0.17を下書きへ戻し、v2.0.18を最新の正式リリースとして公開する。以前のリリース・Git履歴・タグは保持する。既存scripts/create-airyview-story.pyは今回もcommit対象外。
+
+### 2.0.18の公開と同日リリースの整理
+
+- 印刷修正をcommit d160337464a7ddd70d8d768f3b8bbbb0783ee926へ保存しmainへpush。タグv2.0.18も同じcommitを指すことをリモートで確認。
+- 公開先: https://github.com/MitsunobuSuhara/AiryView/releases/tag/v2.0.18 。GitHubのlatest APIでv2.0.18、draft=false・prerelease=falseを確認。
+- ZIP: AiryView-2.0.18-20260926-194150.zip、184046997 bytes。SHA256: 11212D9D77FEF7408B2294914EFD41B39DE762D792EE56ADBF0B98193945BFDF。GitHub側のdigest・サイズと一致し、収録DLLも実機導入済み2.0.18と一致。収録PDFはSamples/print-check.pdfだけ。
+- 利用者の依頼に従い、v2.0.17（release ID 397191642）とv2.0.15（397175688）をdraft=trueへ変更。一般公開から外れ、所有者にはDraftとして残る。ZIP・リリース本文・タグ・Git履歴は保持。以前の日付のリリースは変更していない。
+- 変更前の公開設定をartifacts/release-2.0.17-before-unpublish.json、release-2.0.15-before-unpublish.jsonへ保存。配布一覧はartifacts/release-2.0.18-manifest.csv。実機の印刷プレビュー操作中に利用者入力を検出したため追加操作を中止したが、テストのプレビュー画像・Windows印刷出力の寸法と描画・インストール済み版での原本表示は確認済み。
