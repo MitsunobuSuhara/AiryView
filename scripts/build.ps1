@@ -15,6 +15,8 @@ if ($Test) {
     if ($taskRun.ExitCode -ne 0) { throw 'UI tests failed; see artifacts/test-failure.txt' }
     $taskRun = Start-Process -FilePath $taskDotnet -ArgumentList @($taskDll, '--startup-test') -Wait -PassThru -NoNewWindow
     if ($taskRun.ExitCode -ne 0) { throw 'Startup tests failed; see artifacts/test-failure.txt' }
+    $taskRun = Start-Process -FilePath $taskDotnet -ArgumentList @($taskDll, '--mixed-paper-test') -Wait -PassThru -NoNewWindow
+    if ($taskRun.ExitCode -ne 0) { throw 'Mixed paper tests failed; see artifacts/test-failure.txt' }
 }
 if ($Publish) {
     & $taskDotnet publish src\AiryView\AiryView.csproj -c Release -r win-x64 --self-contained true -o artifacts\app -p:PublishReadyToRun=true

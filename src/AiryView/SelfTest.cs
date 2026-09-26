@@ -216,6 +216,86 @@ public static class SelfTest
         File.WriteAllLines("artifacts/smooth-open-observations.txt", observations.Concat(checks.Select(c => $"{(c.Passed ? "PASS" : "FAIL")}: {c.Name}")));
         foreach (var check in checks) Check(check.Passed, check.Name);
     }
+    public static async Task RunMixedPaperAsync()
+    {
+        Directory.CreateDirectory("artifacts");
+        string path = Environment.GetEnvironmentVariable("AIRYVIEW_MIXED_PDF")
+            ?? System.IO.Path.Combine(AppContext.BaseDirectory, "Samples", "print-check.pdf");
+        using var doc = new PdfDocument(path);
+        int current = Enumerable.Range(0, doc.Count).First(i => doc.SizeMm(i).Width > 400);
+        var print = new PrintWindow(doc, current, null);
+        try
+        {
+            ((ComboBox)print.FindName("PrinterBox")).SelectedItem = "Microsoft Print to PDF";
+            print.Show(); await print.RefreshAsync();
+            var planned = (List<Sheet>)typeof(PrintWindow).GetField("sheets", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(print)!;
+            File.WriteAllLines("artifacts/mixed-paper-observations.csv", new[] { "page,source_width,source_height,paper_width,paper_height" }
+                .Concat(planned.SelectMany(s => s.Items.Select(p => FormattableString.Invariant($"{p.Page + 1},{doc.SizeMm(p.Page).Width:F2},{doc.SizeMm(p.Page).Height:F2},{s.Paper.Width:F2},{s.Paper.Height:F2}")))));
+            Check(planned.Count == doc.Count, "混在PDFの全ページを印刷対象にする");
+            Check(planned.All(s => s.Items.All(p => Near(s.Paper.Width, doc.SizeMm(p.Page).Width, .6)
+                && Near(s.Paper.Height, doc.SizeMm(p.Page).Height, .6) && Near(p.Scale, 1))),
+                "A3ページから開いてもページごとに原本の用紙と向き・100%を保つ");
+            Check(((CheckBox)print.FindName("MatchOriginalBox")).IsChecked == true
+                && ((FrameworkElement)print.FindName("FixedPaperSettings")).Visibility == Visibility.Collapsed,
+                "既定は原本ごとの用紙・向きで、一律用紙の入力を隠す");
+            await print.ShowSideForTest(current);
+            Check(((Canvas)print.FindName("Preview")).Width > ((Canvas)print.FindName("Preview")).Height
+                && ((TextBlock)print.FindName("SideLabel")).Text.Contains("A3 横"), "A3横の面ではプレビューの形と用紙表示も切り替わる");
+            Capture(print, "artifacts/mixed-paper-preview.png");
+            using var printer = new PrintDocument();
+            printer.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+            printer.PrinterSettings.Duplex = Duplex.Simplex;
+            printer.OriginAtMargins = false;
+            printer.PrintController = new StandardPrintController();
+            printer.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
+            var plan = PrintPaperPlan.Build(printer, doc.SizeMm, Enumerable.Range(0, doc.Count).ToArray(), new(PrintMode.Scale), true);
+            string output = System.IO.Path.GetFullPath("artifacts/mixed-paper-printed.pdf");
+            printer.PrinterSettings.PrintToFile = true; printer.PrinterSettings.PrintFileName = output;
+            Check(PrintPaperPlan.Print(doc, printer, plan), "混在用紙をWindowsの印刷経路でPDF出力する");
+            using (var result = new PdfDocument(output))
+            {
+                Check(result.Count == doc.Count && Enumerable.Range(0, doc.Count).All(i =>
+                    Near(result.SizeMm(i).Width, doc.SizeMm(i).Width, .6) && Near(result.SizeMm(i).Height, doc.SizeMm(i).Height, .6)),
+                    "実出力PDFも全ページの原本サイズ・向きを保つ");
+                SaveImage(result.Render(current, 840, 594), "artifacts/mixed-paper-printed-a3.png");
+            }
+            var subset = PrintPaperPlan.Build(printer, doc.SizeMm, [current, 0], new(PrintMode.Scale, 75), true);
+            Check(subset.SelectMany(s => s.Layout.Items).Select(p => p.Page).SequenceEqual([current, 0])
+                && subset.All(s => Near(s.Layout.Items[0].Scale, .75)), "ページ範囲の順番と指定倍率は用紙自動選択でも維持");
+            var duplex = PrintPaperPlan.PadDuplex(plan);
+            Check(duplex.SelectMany(s => s.Layout.Items).Select(p => p.Page).SequenceEqual(Enumerable.Range(0, doc.Count))
+                && Enumerable.Range(0, duplex.Count / 2).All(i => duplex[i * 2].Layout.Paper == duplex[i * 2 + 1].Layout.Paper)
+                && duplex.Any(s => s.Layout.Items.Count == 0), "両面の用紙変更時は裏面を空白にし、本文の順番を保つ");
+            var a4 = printer.PrinterSettings.PaperSizes.Cast<PaperSize>().First(p => p.Kind == PaperKind.A4);
+            Check(PrintPaperPlan.MatchPaper([a4], new Size(420, 297)) == null, "未対応のA3を勝手にA4へ置き換えない");
+            try { PrintPaperPlan.Build(printer, _ => new Size(123, 234), [0], new(PrintMode.Scale), true); Check(false, "未対応用紙の拒否"); }
+            catch (ArgumentException ex) { Check(ex.Message.Contains("PDF 1ページ"), "未対応用紙は対象ページを示して印刷を止める"); }
+            ((CheckBox)print.FindName("MatchOriginalBox")).IsChecked = false;
+            await print.RefreshAsync();
+            Check(print.PlanForTest.All(s => s.Settings.PaperSize.Kind == PaperKind.A3 && s.Layout.Paper.Width > s.Layout.Paper.Height),
+                "自動をオフにすると従来通り全ページを指定のA3横へ統一できる");
+            ((CheckBox)print.FindName("MatchOriginalBox")).IsChecked = true;
+            ((ComboBox)print.FindName("ModeBox")).SelectedIndex = 2;
+            await print.RefreshAsync();
+            Check(!((CheckBox)print.FindName("MatchOriginalBox")).IsEnabled && print.PlanForTest.Count == (doc.Count + 1) / 2,
+                "2ページを1枚へまとめる印刷では指定用紙を使用する");
+            ((ComboBox)print.FindName("ModeBox")).SelectedIndex = 0;
+            await print.RefreshAsync();
+            Check(print.PlanForTest.Count == doc.Count && ((CheckBox)print.FindName("MatchOriginalBox")).IsEnabled,
+                "原寸へ戻すと原本ごとの用紙選択に戻る");
+            using var rotated = new PdfDocument(System.IO.Path.Combine(AppContext.BaseDirectory, "Samples", "print-check.pdf"));
+            rotated.Rotate(2, 1);
+            var portrait = PrintPaperPlan.Build(printer, rotated.SizeMm, [2], new(PrintMode.Scale), true);
+            Check(portrait[0].Settings.PaperSize.Kind == PaperKind.A3 && !portrait[0].Settings.Landscape
+                && portrait[0].Layout.Paper.Height > portrait[0].Layout.Paper.Width, "回転した原本にもA3縦を選ぶ");
+            ((TextBox)print.FindName("RangeBox")).Text = "1";
+            await print.RefreshAsync();
+            Check(print.PlanForTest.Count == 1 && print.PlanForTest[0].Settings.PaperSize.Kind == PaperKind.A4,
+                "A3を表示中でも範囲を1ページにするとA4縦だけを選ぶ");
+        }
+        finally { print.Close(); }
+        File.WriteAllLines("artifacts/mixed-paper-test-results.txt", Results);
+    }
     public static async Task RunOpenBenchmarkAsync()
     {
         Directory.CreateDirectory("artifacts");
@@ -672,6 +752,7 @@ public static class SelfTest
         using (var landscapeDoc = new PdfDocument(System.IO.Path.Combine(AppContext.BaseDirectory, "Samples", "print-check.pdf")))
         {
             var landscapePrint = new PrintWindow(landscapeDoc, 1, null) { Owner = window };
+            ((TextBox)landscapePrint.FindName("RangeBox")).Text = "2";
             landscapePrint.Show();
             var landscapeButton = (Button)landscapePrint.FindName("PrintButton");
             for (int i = 0; i < 100 && !landscapeButton.IsEnabled; i++) await Task.Delay(100);
@@ -679,6 +760,7 @@ public static class SelfTest
             Check(((ComboBox)landscapePrint.FindName("OrientationBox")).SelectedIndex == 1 && previewCanvas.Width > previewCanvas.Height, "A4横PDFの初回プレビューを横向きにする");
             landscapePrint.Close();
             var a3Print = new PrintWindow(landscapeDoc, 2, null) { Owner = window };
+            ((TextBox)a3Print.FindName("RangeBox")).Text = "3";
             a3Print.Show();
             var a3Button = (Button)a3Print.FindName("PrintButton");
             for (int i = 0; i < 100 && !a3Button.IsEnabled; i++) await Task.Delay(100);

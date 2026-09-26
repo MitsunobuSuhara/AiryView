@@ -18,12 +18,12 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        if (e.Args.Contains("--startup-test") || e.Args.Contains("--media-benchmark") || e.Args.Contains("--open-benchmark") || e.Args.Contains("--self-test") || e.Args.Contains("--ui-test"))
+        if (e.Args.Contains("--mixed-paper-test") || e.Args.Contains("--startup-test") || e.Args.Contains("--media-benchmark") || e.Args.Contains("--open-benchmark") || e.Args.Contains("--self-test") || e.Args.Contains("--ui-test"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             AiryView.MainWindow.SuppressRecentFilesForTest = true;
             if (File.Exists("artifacts/test-failure.txt")) File.Delete("artifacts/test-failure.txt");
-            try { if (e.Args.Contains("--startup-test")) await SelfTest.RunStartupAsync(); else if (e.Args.Contains("--media-benchmark")) await SelfTest.RunMediaBenchmarkAsync(); else if (e.Args.Contains("--open-benchmark")) await SelfTest.RunOpenBenchmarkAsync(); else if (e.Args.Contains("--ui-test")) await SelfTest.RunUiAsync(); else SelfTest.Run(); Shutdown(0); }
+            try { if (e.Args.Contains("--mixed-paper-test")) await SelfTest.RunMixedPaperAsync(); else if (e.Args.Contains("--startup-test")) await SelfTest.RunStartupAsync(); else if (e.Args.Contains("--media-benchmark")) await SelfTest.RunMediaBenchmarkAsync(); else if (e.Args.Contains("--open-benchmark")) await SelfTest.RunOpenBenchmarkAsync(); else if (e.Args.Contains("--ui-test")) await SelfTest.RunUiAsync(); else SelfTest.Run(); Shutdown(0); }
             catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
             return;
         }

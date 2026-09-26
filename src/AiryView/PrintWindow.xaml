@@ -10,8 +10,11 @@
    <Button Content="プリンターの詳細設定" Click="PrinterClick"/>
    <TextBlock x:Name="PrinterName" TextWrapping="Wrap" Margin="4,6,4,14"/>
    <TextBlock Text="用紙 / 向き" Margin="4"/>
+   <CheckBox x:Name="MatchOriginalBox" IsChecked="True" Margin="4,6" Checked="SettingsChanged" Unchecked="SettingsChanged" ToolTip="原寸・指定倍率／用紙に合わせる印刷で、ページごとに用紙と向きを選びます。"><TextBlock Text="ページごとに原本の用紙・向きに合わせる" TextWrapping="Wrap"/></CheckBox>
+   <StackPanel x:Name="FixedPaperSettings">
    <ComboBox x:Name="PaperBox" SelectionChanged="SettingsChanged"/>
    <ComboBox x:Name="OrientationBox" SelectedIndex="0" SelectionChanged="SettingsChanged"><ComboBoxItem Content="縦"/><ComboBoxItem Content="横"/></ComboBox>
+   </StackPanel>
    <TextBlock Text="印刷方法" Margin="4,12,4,4"/>
    <ComboBox x:Name="ModeBox" SelectedIndex="0" SelectionChanged="SettingsChanged">
     <ComboBoxItem Content="原寸・指定倍率"/><ComboBoxItem Content="用紙に合わせる"/><ComboBoxItem Content="2ページ／枚"/><ComboBoxItem Content="4ページ／枚"/><ComboBoxItem Content="小冊子"/><ComboBoxItem Content="ポスター"/>
@@ -35,7 +38,7 @@
   <DockPanel Grid.Column="1">
    <TextBlock x:Name="Summary" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="12,4,0,10"/>
    <TextBlock x:Name="Warning" DockPanel.Dock="Top" Foreground="#B45309" TextWrapping="Wrap" Margin="12,0,0,10"/>
-   <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10"><Button Content="‹ 前の面" Click="PreviousClick"/><TextBlock x:Name="SideLabel" Margin="14,0"/><Button Content="次の面 ›" Click="NextClick"/></StackPanel>
+   <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10"><Button Content="‹ 前の面" Click="PreviousClick"/><TextBlock x:Name="SideLabel" Margin="14,0" MaxWidth="380" TextWrapping="Wrap" TextAlignment="Center"/><Button Content="次の面 ›" Click="NextClick"/></StackPanel>
    <ScrollViewer x:Name="PreviewScroller" PreviewMouseWheel="PreviewWheel" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#DDE3EA" ToolTip="ホイールでスクロール。端まで来ると前後の面へ切り替わります。"><Canvas x:Name="Preview" Background="White" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Top" ClipToBounds="True"/></ScrollViewer>
   </DockPanel>
  </Grid>
