@@ -472,3 +472,12 @@ PDF寸法取得の本文解析・繰返し取得、WebP/SVGのPNG中間変換、
 - 次は2.0.15のインストール反映確認と実利用での再発有無確認。GPU描画等による別原因までは今回の合成テストでは否定できない。既存scripts/create-airyview-story.pyの変更は対象外として保持。
 - WPF JumpList.ApplyはSTAを要求するがApplicationへの取付けは必須でないことを公式ソースで確認: https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Shell/JumpList.cs
 2026-09-26 18:27 インストール完了。C:\Program Files\AiryView\AiryView.dllは2.0.15.0、artifacts/appとのSHA256一致、install-result.txtの更新を確認。既存の起動プロセスは通常終了要求で閉じ、強制終了はしていない。検証合計213件（自己42・UI149・起動22）。今回の変更は未commit。
+
+## GitHub Release v2.0.15と受け渡しエラーの復旧（2026-09-26）
+
+- 利用者の明示依頼でGitHubへcommit eb104baをpushし、Release v2.0.15をLatestとして公開。URL: https://github.com/MitsunobuSuhara/AiryView/releases/tag/v2.0.15
+- 配布ZIP: AiryView-2.0.15-20260926-182852.zip、184003380 bytes。SHA256: A01DB3B6B5F663F39344424CAF34A01CDD9723429D1518BDB7E352D9C1B7DC62。GitHub側uploaded・digest一致・タグの対象eb104baafe9da18a480aef4d783874fa1bbe0116を確認。収録DLLは実際に動作したProgram Files版と一致。収録PDFはSamples/print-check.pdfだけ。
+- 更新後、こちらが通常のシェル経由で起動したアプリが作業用Windowsユーザーの画面なしプロセスとして残り、利用者の通常ユーザーから受け渡せないエラーを引き起こした。対象プロセスの所有者・実行パス・ファイル引数なしを確認し、管理者実行でそのプロセスだけを解消。元の「たまに空白」の報告とは区別する。
+- 通常ユーザーで導入済み2.0.15を開き直し、利用者のPDF表示を実画面で確認。同一ファイルの再受信は終了コード0、プロセスは通常ユーザーの1個のみで成功。今後、実機確認用アプリは作業用ユーザーではなく通常ユーザーで起動する。
+- ユーザー・セッション別の起動名を試作したが、その追加ビルドの実行がWindowsのアプリ制御ポリシーで拒否された。制御設定の変更・回避はしていない。追加変更は採用せずソースをeb104baへ戻し、公開対象は既に実機動作確認済みのZIPとした。artifacts/appも公開ZIPの元フォルダから同じ版へ戻した。
+- 追加ビルドを検証したbin/objは次回ビルドで更新される。復旧ログと未採用ビルドの記録はartifacts/repair-install-*.txt、startup-scope-*.log。これらは配布ZIPへ含めない。既存scripts/create-airyview-story.pyの未commit変更は保持。
