@@ -3,7 +3,7 @@
 更新日: 2026-09-26
 開発場所: C:\dev\projects\utilities\AiryView
 
-現在の導入済みビルドは2.0.17。2026-09-26の案内省略・初期表示改善と導入結果は末尾を参照。GitHub Releaseは2.0.15。検証と制約はdocs/PERFORMANCE-2.0.14.mdおよびdocs/PERFORMANCE-2.0.17.mdを参照。以下の旧版記録は履歴。
+現在の導入済みビルドとGitHub最新Releaseは2.0.17。2026-09-26の案内省略・初期表示改善・利用者の改善確認と公開結果は末尾を参照。検証と制約はdocs/PERFORMANCE-2.0.14.mdおよびdocs/PERFORMANCE-2.0.17.mdを参照。以下の旧版記録は履歴。
 
 
 ## 最新状態：デスクトップ版1.1（2026-09-14）
@@ -498,7 +498,9 @@ PDF寸法取得の本文解析・繰返し取得、WebP/SVGのPNG中間変換、
 - .NET同梱publish成功。NuGet脆弱性情報取得のNU1900警告のみ。2026-09-26 19:19:53にProgram Filesへ2.0.17を導入。DLLのバージョン2.0.17.0、publishとのSHA256一致（4CE0692F9620641D4B46D9C9BFA1CB4F63EA827315485615F4D5C5B0B0B4C33F）を確認。通常ユーザーでJPEGと4ページの確認用PDFの実表示を確認した。
 - 利用者提示のスクリーンショットの元パスは既に存在せず、検証用JPEGと同梱のprint-check.pdfを利用。起動時の案内は維持。体感の滑らかさは実利用で確認が必要。GitHub Releaseは2.0.15のまま、2.0.16〜2.0.17は未commit。既存scripts/create-airyview-story.pyの変更は保護する。
 
-### 2.0.17の公開準備
+### 2.0.17の公開結果
 
-- 2026-09-26、利用者から「改善しました」と報告があり、GitHub Release更新とpushを明示依頼された。2.0.16〜2.0.17の変更をまとめて保存し、検証・導入済みの2.0.17を公開する。
+- 2026-09-26、利用者から「改善しました」と報告があり、GitHub Release更新とpushを明示依頼された。2.0.16〜2.0.17の変更をcommit be10d917ef20aa270e4d4dfd3d9079b9b6bdc05aへまとめてmainにpushし、検証・導入済みの2.0.17を公開した。
 - 配布ZIPはAiryView-2.0.17-20260926-192606.zip。SHA256: 43387689B431119E2C182D1E4DE039133B4641C77E2C143BDB9AD2496D618C5D。収録DLLと導入済みDLLの一致を確認。今回と無関係のscripts/create-airyview-story.pyはcommit対象外。
+- 公開先: https://github.com/MitsunobuSuhara/AiryView/releases/tag/v2.0.17 。GitHub APIで最新Releaseがv2.0.17、draft=false・prerelease=false、ZIPのuploaded状態・184022658 bytes・SHA256一致を確認。リモートタグv2.0.17はbe10d917ef20aa270e4d4dfd3d9079b9b6bdc05aを指す。
+- 配布内容の一覧はartifacts/release-2.0.17-manifest.csv。PDFはSamples/print-check.pdfのみ、PEMは同梱ライブラリのCA証明書。利用者の文書や個人用証明書は含まない。今回の検証・配布物は保持し、削除した一時ファイルはない。
