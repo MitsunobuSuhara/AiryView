@@ -75,13 +75,13 @@ public partial class App : System.Windows.Application
             if (!await ForwardFilesAsync(files)) MessageBox.Show("起動中のAiryViewへファイルを渡せませんでした。少し待ってから開き直してください。", "AiryView");
             instanceMutex.Dispose(); instanceMutex = null; Shutdown(0); return;
         }
-        var window = new MainWindow();
+        var window = new MainWindow(showWelcome: files.Length == 0);
         MainWindow = window;
         pipeCancellation = new CancellationTokenSource();
         _ = StartFileListener(window, pipeCancellation.Token);
         window.Closed += (_, _) => { pipeCancellation.Cancel(); instanceMutex?.ReleaseMutex(); instanceMutex?.Dispose(); instanceMutex = null; };
-        window.Show();
-        if (files.Length > 0) window.OpenPaths(files);
+        if (files.Length > 0) await window.ShowFilesAsync(files);
+        else window.Show();
     }
     private static async Task<bool> ForwardFilesAsync(string[] files)
     {
@@ -138,6 +138,7 @@ public partial class App : System.Windows.Application
                 await window.Dispatcher.InvokeAsync(() =>
                 {
                     if (cancellationToken.IsCancellationRequested) return;
+                    if (files.Length > 0) window.PrepareFileOpen();
                     BringWindowToFront(window);
                     if (files.Length > 0) window.OpenPaths(files);
                 });

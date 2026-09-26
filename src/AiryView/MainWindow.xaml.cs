@@ -62,6 +62,9 @@ public partial class MainWindow : Window
         public IReadOnlyList<PdfTextCharacter>? Characters;
         public int Page;
         public int RenderWidth;
+        public int RenderHeight;
+        public Task<BitmapSource>? PendingRender;
+        public int PendingWidth, PendingHeight;
     }
     private readonly List<PageView> pageViews = [];
     private Grid PageSurface => pageViews[Current!.Page].Surface;
@@ -141,13 +144,14 @@ public partial class MainWindow : Window
     private const long MaxImagePixels = 200_000_000;
     private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".ico", ".webp", ".svg"];
 
-    public MainWindow()
+    public MainWindow() : this(showWelcome: true) { }
+    internal MainWindow(bool showWelcome)
     {
         InitializeComponent();
-        var icon = BitmapDecoder.Create(new Uri("pack://application:,,,/Assets/icon.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-        WelcomeCrane.Source = icon.Frames.OrderByDescending(frame => frame.PixelWidth).First();
+        suppressWelcomeUntilOpen = !showWelcome;
+        UpdateWelcome();
         Closed += (_, _) => { windowClosed = true; svgTimer.Stop(); zoomTimer.Stop(); ++svgRequestVersion; ++renderVersion; };
-        Loaded += (_, _) => QueueInitialDisplay();
+        Loaded += (_, _) => { CompleteInitialImageFit(); QueueInitialDisplay(); };
         StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) QueueInitialDisplay(); };
         ImageViewer.SizeChanged += (_, _) => { if (CurrentImage is { InitialFitComplete: false }) QueueInitialDisplay(); };
         SourceInitialized += (_, _) => ApplyDarkTitleBar();
@@ -155,6 +159,25 @@ public partial class MainWindow : Window
         svgTimer.Tick += async (_, _) => await RefreshSvgAsync();
         zoomTimer.Tick += async (_, _) => { zoomTimer.Stop(); await RenderVisible(); };
         DpiChanged += (_, _) => { zoomTimer.Stop(); zoomTimer.Start(); if (CurrentImage is { SvgBytes: not null } image) ApplyImageLayout(image); };
+    }
+    private bool suppressWelcomeUntilOpen;
+    private int fileOpenRequests;
+    internal void PrepareFileOpen()
+    {
+        // Showより前に確定させ、最初のフレームに案内を混ぜない。
+        suppressWelcomeUntilOpen = true;
+        UpdateWelcome();
+    }
+    private void UpdateWelcome()
+    {
+        bool show = !suppressWelcomeUntilOpen && fileOpenRequests == 0 && Tabs.Items.Count == 0;
+        Welcome.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (show && WelcomeCrane.Source == null)
+        {
+            // ファイル起動では使わない案内用の画像も読み込まない。
+            var icon = BitmapDecoder.Create(new Uri("pack://application:,,,/Assets/icon.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            WelcomeCrane.Source = icon.Frames.OrderByDescending(frame => frame.PixelWidth).First();
+        }
     }
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -165,7 +188,15 @@ public partial class MainWindow : Window
         if (DwmSetWindowAttribute(handle, 20, ref enabled, sizeof(int)) != 0)
             DwmSetWindowAttribute(handle, 19, ref enabled, sizeof(int));
     }
-    private void Error(Exception ex) => MessageBox.Show(this, ex.Message, "AiryView", MessageBoxButton.OK, MessageBoxImage.Warning);
+    private void ShowDialogOwner()
+    {
+        if (!windowClosed && !IsVisible) Show();
+    }
+    private void Error(Exception ex)
+    {
+        ShowDialogOwner();
+        MessageBox.Show(this, ex.Message, "AiryView", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
     public async void NewText() => await NewTextAsync();
     private void NewTextClick(object s, RoutedEventArgs e) => NewText();
     private TabItem CreateTab(string title, string toolTip, object state)
@@ -192,6 +223,8 @@ public partial class MainWindow : Window
         StatePath(tab.Tag) is { } openPath && string.Equals(System.IO.Path.GetFullPath(openPath), path, StringComparison.OrdinalIgnoreCase));
     internal string? CurrentPathForTest => StatePath((Tabs.SelectedItem as TabItem)?.Tag);
     internal int TabCountForTest => Tabs.Items.Count;
+    internal int PdfRenderCountForTest { get; private set; }
+    internal Task RenderVisibleForTest() => RenderVisible();
     internal async Task NewTextAsync()
     {
         var state = new TextTabState("", LightweightTextRenderer.BuildPlain(""), "", new UTF8Encoding(false), true);
@@ -210,7 +243,50 @@ public partial class MainWindow : Window
         catch { }
     }
     public async void OpenPaths(IEnumerable<string> paths) => await OpenPathsAsync(paths);
+    internal async Task ShowFilesAsync(IEnumerable<string> paths)
+    {
+        // HWNDだけを作り、実際のモニターのDPIで最初の内容を準備する。
+        // 読込中の空の枠を見せず、固定時間の待機やアニメーションは追加しない。
+        new WindowInteropHelper(this).EnsureHandle();
+        string[] requested = paths.ToArray();
+        await OpenPathsAsync(requested.Take(1));
+        if (windowClosed) return;
+        if (!IsVisible && Current is { } state && pageViews.Count > 0)
+        {
+            int version = ++renderVersion;
+            var view = pageViews[state.Page];
+            double factor = Math.Min(VisualTreeHelper.GetDpi(this).DpiScaleX,
+                Math.Sqrt(12_000_000.0 / (view.Surface.Width * view.Surface.Height)));
+            int w = Math.Max(1, (int)Math.Round(view.Surface.Width * factor));
+            int h = Math.Max(1, (int)Math.Round(view.Surface.Height * factor));
+            try
+            {
+                ++PdfRenderCountForTest;
+                var bitmap = await Task.Run(() => state.Document.Render(view.Page, w, h, lcdText: true));
+                if (!windowClosed && version == renderVersion && Current == state)
+                {
+                    view.Image.Source = bitmap; view.RenderWidth = w; view.RenderHeight = h;
+                }
+            }
+            catch (ObjectDisposedException) when (windowClosed) { }
+            catch (Exception ex) { if (!windowClosed) Error(ex); }
+        }
+        if (!windowClosed && !IsVisible) Show();
+        if (!windowClosed && requested.Length > 1) await OpenPathsAsync(requested.Skip(1));
+    }
     public async Task OpenPathsAsync(IEnumerable<string> paths)
+    {
+        ++fileOpenRequests;
+        suppressWelcomeUntilOpen = false;
+        UpdateWelcome();
+        try { await OpenPathsCoreAsync(paths); }
+        finally
+        {
+            --fileOpenRequests;
+            if (!windowClosed) UpdateWelcome();
+        }
+    }
+    private async Task OpenPathsCoreAsync(IEnumerable<string> paths)
     {
         foreach (string requestedPath in paths)
         {
@@ -219,8 +295,7 @@ public partial class MainWindow : Window
                 string path = System.IO.Path.GetFullPath(requestedPath);
                 if (FindOpenTab(path) is { } existing)
                 {
-                    Tabs.SelectedItem = existing;
-                    await RenderCurrent();
+                    await SelectOpenTabAsync(existing);
                     AddRecentFile(path);
                     continue;
                 }
@@ -245,8 +320,7 @@ public partial class MainWindow : Window
                     if (windowClosed) return;
                     if (FindOpenTab(path) is { } loadedTab)
                     {
-                        Tabs.SelectedItem = loadedTab;
-                        await RenderCurrent();
+                        await SelectOpenTabAsync(loadedTab);
                         continue;
                     }
                     var image = new ImageTabState(path, bitmap) { SvgBytes = extension == ".svg" ? bytes : null };
@@ -262,6 +336,7 @@ public partial class MainWindow : Window
                     try { doc = await Task.Run(() => new PdfDocument(path, password)); break; }
                     catch (PdfPasswordException)
                     {
+                        ShowDialogOwner();
                         password = TextPrompt.Ask(this, "PDFのパスワード", password == null ? "開くためのパスワードを入力してください。" : "パスワードが正しくありません。再入力してください。", true);
                         if (password == null) return;
                     }
@@ -274,6 +349,21 @@ public partial class MainWindow : Window
             }
             catch (Exception ex) { Error(ex); Status.Text = "ファイルを開けませんでした。"; }
         }
+    }
+    private async Task SelectOpenTabAsync(TabItem tab)
+    {
+        if (ReferenceEquals(Tabs.SelectedItem, tab))
+        {
+            // 表示中の内容・選択・編集位置を保ち、未完了の描画だけ補う。
+            CompleteInitialImageFit();
+            if (Current != null) await RenderVisible();
+            return;
+        }
+        opening = true;
+        try { Tabs.SelectedItem = tab; }
+        finally { opening = false; }
+        // SelectionChangedと呼出元の両方からページを作り直さない。
+        await RenderCurrent();
     }
     internal static Task<BitmapSource> DecodeImageAsync(byte[] bytes, string extension) =>
         Task.Run(() => extension == ".svg" ? LoadSvgBitmap(bytes) : extension == ".webp" ? LoadSkiaBitmap(bytes) : LoadWpfBitmap(bytes));
@@ -413,7 +503,7 @@ public partial class MainWindow : Window
         PagesHost.Children.Clear(); pageViews.Clear();
         ClearTextSearch();
         TextSearchBar.Visibility = Visibility.Collapsed;
-        Welcome.Visibility = state == null && textDocument == null && image == null ? Visibility.Visible : Visibility.Collapsed;
+        UpdateWelcome();
         Viewer.Visibility = state != null ? Visibility.Visible : Visibility.Collapsed;
         MarkdownViewer.Visibility = textDocument?.IsMarkdown == true && !textDocument.SourceMode ? Visibility.Visible : Visibility.Collapsed;
         TextEditorArea.Visibility = textDocument?.ShowEditor == true ? Visibility.Visible : Visibility.Collapsed;
@@ -441,7 +531,9 @@ public partial class MainWindow : Window
             ApplyImageLayout(image);
             if (!image.InitialFitComplete)
             {
-                QueueInitialDisplay();
+                // 表示可能なウィンドウでは最初のフレームまでに倍率を確定する。
+                CompleteInitialImageFit();
+                if (!image.InitialFitComplete) QueueInitialDisplay();
             }
         }
         if (!ZoomText.IsKeyboardFocusWithin && (state != null || textDocument != null || image != null)) ZoomText.Text = (ActiveZoom * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
@@ -539,6 +631,7 @@ public partial class MainWindow : Window
     {
         int version = ++renderVersion;
         if (windowClosed || !IsLoaded || WindowState == WindowState.Minimized || Current is not { } state) return;
+        zoomTimer.Stop();
         try
         {
             // 全ページの画像を保持せず、画面付近だけ描画して大きなPDFのメモリを抑える。
@@ -552,10 +645,21 @@ public partial class MainWindow : Window
                 double dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
                 double factor = Math.Min(dpi, Math.Sqrt(12_000_000.0 / Math.Max(1, visible.Length) / (surface.ActualWidth * surface.ActualHeight)));
                 int w = Math.Max(1, (int)Math.Round(surface.ActualWidth * factor)), h = Math.Max(1, (int)Math.Round(surface.ActualHeight * factor));
-                if (item.View.RenderWidth == w && item.View.Image.Source != null) continue;
-                var bitmap = await Task.Run(() => state.Document.Render(item.Page, w, h, lcdText: true));
+                if (item.View.RenderWidth == w && item.View.RenderHeight == h && item.View.Image.Source != null) continue;
+                var view = item.View;
+                // Loaded・復帰・スクロールが重なっても同じ画素を作り直さない。
+                if (view.PendingRender == null || view.PendingWidth != w || view.PendingHeight != h)
+                {
+                    view.PendingWidth = w; view.PendingHeight = h;
+                    ++PdfRenderCountForTest;
+                    view.PendingRender = Task.Run(() => state.Document.Render(item.Page, w, h, lcdText: true));
+                }
+                var pending = view.PendingRender;
+                BitmapSource bitmap;
+                try { bitmap = await pending; }
+                finally { if (ReferenceEquals(view.PendingRender, pending)) view.PendingRender = null; }
                 if (version != renderVersion || Current != state) return;
-                item.View.Image.Source = bitmap; item.View.RenderWidth = w;
+                view.Image.Source = bitmap; view.RenderWidth = w; view.RenderHeight = h;
             }
         }
         catch (ObjectDisposedException) { }
@@ -1110,7 +1214,7 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.0.15\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.0.17\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)

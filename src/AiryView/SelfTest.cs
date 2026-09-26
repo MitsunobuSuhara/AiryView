@@ -21,6 +21,78 @@ public static class SelfTest
         string png = System.IO.Path.GetFullPath("artifacts/startup-check.png");
         byte[] pixels = Enumerable.Repeat((byte)200, 1600 * 900 * 3).ToArray();
         SaveImage(BitmapSource.Create(1600, 900, 96, 96, PixelFormats.Bgr24, null, pixels, 1600 * 3), png);
+        string jpg = System.IO.Path.GetFullPath("artifacts/startup-check.jpg");
+        var jpeg = new JpegBitmapEncoder();
+        jpeg.Frames.Add(BitmapFrame.Create(new Uri(png)));
+        using (var file = File.Create(jpg)) jpeg.Save(file);
+        string txt = System.IO.Path.GetFullPath("artifacts/startup-check.txt");
+        string md = System.IO.Path.GetFullPath("artifacts/startup-check.md");
+        File.WriteAllText(txt, "直接表示の確認"); File.WriteAllText(md, "# 直接表示の確認");
+        await CheckSmoothOpenAsync(pdf, png);
+        foreach (string path in new[] { pdf, png, jpg, txt, md })
+        foreach (WindowState state in new[] { WindowState.Normal, WindowState.Maximized })
+        {
+            var launch = new MainWindow(showWelcome: false) { Width = 1000, Height = 760, WindowState = state };
+            bool visibleWithContent = false;
+            launch.IsVisibleChanged += (_, _) =>
+            {
+                if (!launch.IsVisible) return;
+                bool content = path == pdf
+                    ? ((StackPanel)launch.FindName("PagesHost")).Children.OfType<Grid>().FirstOrDefault()?.Children.OfType<Image>().FirstOrDefault()?.Source is BitmapSource
+                    : path == png || path == jpg ? ((Image)launch.FindName("ReaderImage")).Source is BitmapSource
+                    : launch.CurrentPathForTest == path;
+                visibleWithContent = content;
+            };
+            var frame = new TaskCompletionSource<double>(TaskCreationOptions.RunContinuationsAsynchronously);
+            EventHandler firstFrame = (_, _) => { if (launch.IsVisible) frame.TrySetResult(launch.ActiveZoomForTest); };
+            CompositionTarget.Rendering += firstFrame;
+            try
+            {
+                await launch.ShowFilesAsync([path]);
+                double zoomAtFirstFrame = await frame.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                Check(visibleWithContent, System.IO.Path.GetExtension(path) + " " + state + " のファイル起動は内容を準備してから枠を表示する");
+                if (path == png || path == jpg)
+                {
+                    var reader = (Image)launch.FindName("ReaderImage");
+                    var viewer = (ScrollViewer)launch.FindName("ImageViewer");
+                    Check(Near(zoomAtFirstFrame, launch.ActiveZoomForTest, .00001) && reader.ActualWidth <= viewer.ViewportWidth,
+                        state + " 画像起動の最初の描画フレームから画面幅に合っている");
+                }
+            }
+            finally { CompositionTarget.Rendering -= firstFrame; launch.Close(); }
+        }
+        foreach (string path in new[] { pdf, png, jpg, txt, md })
+        {
+            var direct = new MainWindow(showWelcome: false);
+            var welcome = (FrameworkElement)direct.FindName("Welcome");
+            var crane = (Image)direct.FindName("WelcomeCrane");
+            bool welcomeWasShown = false;
+            welcome.IsVisibleChanged += (_, _) => welcomeWasShown |= welcome.IsVisible;
+            try
+            {
+                Check(welcome.Visibility == Visibility.Collapsed && crane.Source == null, "ファイル起動はShow前から案内と専用画像の読込を省く");
+                direct.Show();
+                await direct.OpenPathsAsync(new[] { path });
+                await direct.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+                Check(!welcomeWasShown && !welcome.IsVisible && crane.Source == null && direct.TabCountForTest == 1,
+                    System.IO.Path.GetExtension(path) + " は案内画面を一度も挟まず開く");
+                direct.CloseCurrentTabForTest();
+                Check(welcome.Visibility == Visibility.Visible && crane.Source != null, "最後のファイルを閉じると鶴付き案内へ戻る");
+            }
+            finally { direct.Close(); }
+        }
+        var standalone = new MainWindow();
+        try
+        {
+            standalone.Show();
+            Check(((FrameworkElement)standalone.FindName("Welcome")).IsVisible, "単独起動は従来の案内を表示");
+            standalone.PrepareFileOpen();
+            App.BringWindowToFront(standalone);
+            Check(!((FrameworkElement)standalone.FindName("Welcome")).IsVisible, "外部ファイルの受信時は画面復帰より先に案内を隠す");
+            await standalone.OpenPathsAsync(Array.Empty<string>());
+            Check(((FrameworkElement)standalone.FindName("Welcome")).IsVisible, "ファイルを開かず終了した場合は案内へ戻る");
+        }
+        finally { standalone.Close(); }
         foreach (string path in new[] { pdf, png })
         foreach (string mode in new[] { "normal", "before-show", "minimized", "repeat" })
         {
@@ -107,6 +179,42 @@ public static class SelfTest
         }
         finally { cancellation.Cancel(); await listener.WaitAsync(TimeSpan.FromSeconds(3)); pipeWindow.Close(); }
         File.WriteAllLines("artifacts/startup-test-results.txt", Results);
+    }
+    private static async Task CheckSmoothOpenAsync(string pdf, string png)
+    {
+        var checks = new List<(bool Passed, string Name)>();
+        var observations = new List<string>();
+        var window = new MainWindow(showWelcome: false) { Width = 1000, Height = 760, WindowState = WindowState.Normal };
+        try
+        {
+            window.Show();
+            var watch = Stopwatch.StartNew();
+            await window.OpenPathsAsync([png]);
+            checks.Add((window.ActiveZoomForTest < 1, "画像は読込完了時点で表示幅が確定し、次の描画待ちで縮まない"));
+            observations.Add($"image_open_ms={watch.Elapsed.TotalMilliseconds:F2}; zoom_at_return={window.ActiveZoomForTest:F4}");
+            await window.OpenPathsAsync([pdf]);
+            await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+            var pages = (StackPanel)window.FindName("PagesHost");
+            Image firstImage = pages.Children.OfType<Grid>().First().Children.OfType<Image>().First();
+            var firstSource = firstImage.Source;
+            int renders = window.PdfRenderCountForTest;
+            watch.Restart();
+            await window.OpenPathsAsync([pdf]);
+            checks.Add((ReferenceEquals(firstImage, pages.Children.OfType<Grid>().First().Children.OfType<Image>().First())
+                && ReferenceEquals(firstSource, firstImage.Source) && window.PdfRenderCountForTest == renders,
+                "表示中のPDFをもう一度開いても画像を消したり再描画したりしない"));
+            observations.Add($"repeat_pdf_ms={watch.Elapsed.TotalMilliseconds:F2}; new_renders={window.PdfRenderCountForTest - renders}");
+            // 拡大直後にLoaded等から同一サイズの描画要求が重なる状況を再現する。
+            window.ZoomByWheel(120);
+            renders = window.PdfRenderCountForTest;
+            await Task.WhenAll(window.RenderVisibleForTest(), window.RenderVisibleForTest());
+            int visiblePages = pages.Children.OfType<Grid>().Count(p => p.Children.OfType<Image>().First().Source != null);
+            checks.Add((window.PdfRenderCountForTest - renders == visiblePages, "重なったPDF描画要求は同じページを一度だけ処理する"));
+            observations.Add($"overlapping_pdf_renders={window.PdfRenderCountForTest - renders}; visible_pages={visiblePages}");
+        }
+        finally { window.Close(); }
+        File.WriteAllLines("artifacts/smooth-open-observations.txt", observations.Concat(checks.Select(c => $"{(c.Passed ? "PASS" : "FAIL")}: {c.Name}")));
+        foreach (var check in checks) Check(check.Passed, check.Name);
     }
     public static async Task RunOpenBenchmarkAsync()
     {
