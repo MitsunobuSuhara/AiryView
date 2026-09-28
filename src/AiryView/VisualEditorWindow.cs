@@ -12,14 +12,14 @@ internal sealed class ToolIconConverter : IValueConverter
 {
     internal static Geometry For(string name) => name switch
     {
-        "文字" => Geometry.Parse("M 2,4 L 19,4 M 10,4 L 10,17"),
-        "矢印" => Geometry.Parse("M 2,17 L 17,3 M 9,3 L 17,3 17,11"),
-        "線" => Geometry.Parse("M 2,17 L 18,3"),
-        "四角形" => Geometry.Parse("M 3,4 L 17,4 17,16 3,16 Z"),
-        "円・楕円" => new EllipseGeometry(new Rect(2, 5, 16, 10)),
-        "ハイライト" => Geometry.Parse("M 3,4 L 17,4 17,16 3,16 Z M 5,8 L 15,8 M 5,12 L 15,12"),
-        "範囲指定" => Geometry.Parse("M 3,3 L 17,3 17,17 3,17 Z M 1,1 L 5,1 M 15,19 L 19,19"),
-        "フリーハンド" => Geometry.Parse("M 2,14 C 5,4 7,18 10,9 C 13,1 15,16 18,5"),
+        "文字" => Geometry.Parse("M 4,2 L 16,2 Q 18,2 18,4 L 18,16 Q 18,18 16,18 L 4,18 Q 2,18 2,16 L 2,4 Q 2,2 4,2 Z M 5,6 L 15,6 M 10,6 L 10,14"),
+        "矢印" => Geometry.Parse("M 3,16 L 16,3 M 9,3 L 16,3 L 16,10"),
+        "線" => Geometry.Parse("M 5,15 L 15,5 M 2,14 L 5,14 L 5,17 L 2,17 Z M 15,3 L 18,3 L 18,6 L 15,6 Z"),
+        "四角形" => Geometry.Parse("M 3,4 L 16,4 L 16,15 L 3,15 Z M 1,2 L 5,2 L 5,6 L 1,6 Z M 14,13 L 18,13 L 18,17 L 14,17 Z"),
+        "円・楕円" => Geometry.Parse("M 3,10 A 7,5 0 1 1 17,10 A 7,5 0 1 1 3,10 Z M 1,8 L 4,8 L 4,11 L 1,11 Z M 16,8 L 19,8 L 19,11 L 16,11 Z"),
+        "ハイライト" => Geometry.Parse("M 5,12 L 11,3 L 17,7 L 11,16 L 5,12 Z M 3,18 L 18,18 M 8,12 L 14,6"),
+        "範囲指定" => Geometry.Parse("M 2,2 L 7,2 M 13,2 L 18,2 L 18,7 M 18,13 L 18,18 L 13,18 M 7,18 L 2,18 L 2,13 M 2,7 L 2,2 M 7,7 L 13,7 L 13,13 L 7,13 Z"),
+        "フリーハンド" => Geometry.Parse("M 2,15 C 4,4 7,18 10,10 C 12,3 15,16 18,5 M 15,4 L 18,5 L 17,8"),
         _ => Geometry.Empty
     };
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => For(value as string ?? "");
@@ -111,7 +111,7 @@ internal sealed class VisualEditorWindow : Window
         var row = new FrameworkElementFactory(typeof(DockPanel)); row.SetValue(FrameworkElement.WidthProperty, width);
         var icon = new FrameworkElementFactory(typeof(ShapePath));
         icon.SetValue(DockPanel.DockProperty, Dock.Right); icon.SetValue(FrameworkElement.WidthProperty, 20.0); icon.SetValue(FrameworkElement.HeightProperty, 20.0);
-        icon.SetValue(FrameworkElement.MarginProperty, new Thickness(5, 0, 0, 0)); icon.SetValue(ShapePath.StrokeProperty, Brushes.SlateGray);
+        icon.SetValue(FrameworkElement.MarginProperty, new Thickness(4, 0, 9, 0)); icon.SetValue(ShapePath.StrokeProperty, Brushes.SlateGray);
         icon.SetValue(ShapePath.StrokeThicknessProperty, 1.7); icon.SetValue(ShapePath.StretchProperty, Stretch.None);
         icon.SetBinding(ShapePath.DataProperty, new Binding { Converter = new ToolIconConverter() }); row.AppendChild(icon);
         var label = new FrameworkElementFactory(typeof(TextBlock)); label.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
@@ -164,7 +164,7 @@ internal sealed class VisualEditorWindow : Window
             AsyncButton(commands, "次のページ", () => LoadPage(page + 1));
         }
         var writing = new WrapPanel { Margin = new Thickness(5) }; controls.Children.Add(writing);
-        tool.ItemTemplate = ToolTemplate(105); highlightMethod.ItemTemplate = ToolTemplate(87);
+        tool.ItemTemplate = ToolTemplate(100); highlightMethod.ItemTemplate = ToolTemplate(87);
         foreach (string name in new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) tool.Items.Add(name);
         foreach (string name in new[] { "範囲指定", "フリーハンド" }) highlightMethod.Items.Add(name);
         highlightMethod.SelectedIndex = 0;
