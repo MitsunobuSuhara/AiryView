@@ -2,6 +2,8 @@
 
 更新日: 2026-09-28
 
+最新作業：2.1.10で保存確認・編集破棄の選択中ボタンの青い影を除去。利用者画像で点線のフォーカス枠より外へ薄青色がはみ出していたため、青背景と輪郭だけを残してボタン内に収めた。Releaseビルド、確認画面テスト成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `FDF32568B62880A0E3699F5BEBF5E0D40F596E74C60E468D74EAD2FB7016E13C`、導入版の確認画面テストも終了0。利用者の更新後目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。
+
 最新作業：2.1.9で保存確認・編集破棄の小窓における矢印キーの選択先を強調。選択中のボタンのみ濃い青背景・白文字・太字・青い影、選択を外れたボタンは白背景へ戻す。既存の左右矢印移動・Enter実行は維持。Releaseビルド、全自動テスト、確認画面テスト成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `1FC84A642488AE2F550B9301E5E92A5A928BCEADB9BEF6A4EEABEDDFD957432B`、導入版の確認画面テストも終了0。通常ユーザーの目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。
 
 最新作業：2.1.8でメモ画面下の案内を「検索・コピー・保存では…」という限定的に読める列挙から、「文字そのものは普通の数字の0です」へ変更。案内中の最初の0はメモ本文と同じCascadia Mono優先フォントで表示し、点付きの実例を見せる。READMEも同じ趣旨へ修正。ReleaseビルドとUI自動確認成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `ED7B099E9902EE67619DCAE098C378B5B010556840D1F0948E0874F21374771E`、導入版2.1.8.0。通常ユーザーによる案内の目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。

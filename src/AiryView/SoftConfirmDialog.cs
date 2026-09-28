@@ -58,7 +58,6 @@ internal sealed class SoftConfirmDialog : Window
                 button.BorderBrush = new SolidColorBrush(Color.FromRgb(24, 67, 133));
                 button.Foreground = Brushes.White;
                 button.FontWeight = FontWeights.SemiBold;
-                button.Effect = new DropShadowEffect { Color = Color.FromRgb(47, 101, 181), BlurRadius = 13, ShadowDepth = 0, Opacity = .65 };
             };
             button.LostKeyboardFocus += (_, _) =>
             {
@@ -66,7 +65,6 @@ internal sealed class SoftConfirmDialog : Window
                 button.BorderBrush = new SolidColorBrush(Color.FromRgb(215, 224, 234));
                 button.Foreground = new SolidColorBrush(Color.FromRgb(36, 50, 68));
                 button.FontWeight = FontWeights.Normal;
-                button.Effect = null;
             };
             button.Click += (_, _) => { choice = result; DialogResult = result != MessageBoxResult.Cancel; };
             buttons.Children.Add(button);
