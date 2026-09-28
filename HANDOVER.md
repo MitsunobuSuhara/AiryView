@@ -2,6 +2,8 @@
 
 更新日: 2026-09-28
 
+最新作業：PDFの総ページ数表示と次ページボタンの間にあった固定最小幅42pxと大きな余白を除き、表示内容に応じた幅へ変更。倍率入力欄を66pxから84pxに広げ、小数表示 `125.55%` の画面画像を確認。UI自動確認では総ページ数から次ページボタンまでの間隔20px以下、ページ移動・倍率入力の動作を検証。2.1.5をProgram Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `576CBDB1D512C0DBC7A92247D9185F09717E22B15E2CEA360972DBD3EB8891F6`、導入版UI確認終了0。利用者の希望によりGitHub Releaseは作らず、コードのみpush。GitHubの最新Releaseはv2.1.4。無関係な `scripts/create-airyview-story.py` はcommit対象外。
+
 最新作業：PDFの前／次ページボタンのマークを、縦スクロールに合わせて↑／↓へ変更。ボタン位置とページ移動の動作は維持し、ツールチップと操作案内も上下の表現に更新。UI自動確認と画面画像で表示を確認。2.1.4をProgram Filesへ導入し、インストーラー終了0、ビルド／導入DLL SHA256一致 `E48C076F49AC43909A289DF82ABDF4C0C4A4F12469776C8C562C6C2F1DBA0661`、導入版UI確認終了0。利用者の希望により、小さな修正ではGitHub Releaseを毎回作らず、通常は導入とコードpushまでにする。今回は利用者が明示して2.1.4のReleaseを希望したため公開。ZIP `AiryView-2.1.4-20260928-152658.zip` は215071890 bytes、SHA256 `6B5DE1FD048D995F5E36C4561020362C2906E7D788714B1880360D2F1CBDB388` でGitHub側digestと一致し、収録DLLも導入済みと一致。公開先: https://github.com/MitsunobuSuhara/AiryView/releases/tag/v2.1.4 。無関係な `scripts/create-airyview-story.py` はcommit対象外。
 今日公開したv2.1.0〜v2.1.3は利用者の要望に合わせてDraftへ戻し、v2.1.4だけを今日の公開版として残した。変更前のRelease内容・配布情報は `artifacts/v2.1.0-before-draft.json`〜`artifacts/v2.1.3-before-draft.json` に保持。Gitタグ・Git履歴・ZIPのローカルコピーは削除していない。再公開可能。GitHubのLatest APIとRelease一覧で確認済み。
 
