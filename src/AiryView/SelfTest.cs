@@ -638,6 +638,7 @@ public static class SelfTest
         zoomButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Task.Delay(600); window.UpdateLayout();
         Check(second.Height > oldHeight && pageNumber.Text == pageTotal.ToString(), "連続表示の拡大後も閲覧ページを維持");
+        Check(Near(window.ActiveZoomForTest * 100, Math.Round(window.ActiveZoomForTest * 100), .000001), "＋ボタンの倍率を整数％にする");
         var zoomInput = (TextBox)window.FindName("ZoomText");
         void EnterZoom(string text)
         {
@@ -650,6 +651,8 @@ public static class SelfTest
         EnterZoom("125.55"); window.UpdateLayout();
         Check(zoomInput.Text == "125.55", "小数点付きの倍率を欠けずに表示する");
         Capture(window, "artifacts/zoom-decimal-window.png");
+        zoomButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(zoomInput.Text == "151", "小数倍率から＋ボタンを押しても整数％へ揃える");
         EnterZoom("125%");
         Check(Near(second.Height, oldHeight * 1.25), "％付きの倍率手入力を反映");
         EnterZoom("NaN");
@@ -660,6 +663,8 @@ public static class SelfTest
         Check(Near(second.Height, oldHeight), "連続ホイールでも100％で短く停止");
         await Task.Delay(500); window.ZoomByWheel(120);
         Check(second.Height > oldHeight, "100％から次のホイールで拡大できる");
+        window.ZoomByWheel(120);
+        Check(zoomInput.Text == "125" && Near(window.ActiveZoomForTest * 100, 125, .000001), "連続Ctrl＋ホイールでも倍率を整数％にする");
         EnterZoom("105"); window.ZoomByWheel(-120);
         Check(Near(second.Height, oldHeight) && zoomInput.Text == "100", "Ctrlホイール縮小で100％に止まる");
         await Task.Delay(500); window.ZoomByWheel(-120);
