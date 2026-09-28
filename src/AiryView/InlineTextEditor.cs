@@ -17,6 +17,8 @@ internal sealed class InlineTextEditor : Border
     private readonly Popup movePopup;
     private readonly Popup formatPopup;
     private readonly Button formatHandle;
+    private readonly Thumb moveGrip;
+    private readonly Thumb resizeGrip;
     private readonly ComboBox fontPicker;
     private readonly TextBox sizePicker;
     private readonly ToggleButton boldPicker;
@@ -38,6 +40,9 @@ internal sealed class InlineTextEditor : Border
     internal string FontId { get; private set; } = "MS Gothic";
     internal bool PaletteOpenForTest => palette.IsOpen;
     internal bool CanDeleteForTest => deleteButton != null;
+    internal Size MoveHandleSizeForTest => new(moveGrip.Width, moveGrip.Height);
+    internal Size FormatHandleSizeForTest => new(formatHandle.Width, formatHandle.Height);
+    internal Size ResizeHandleScreenSizeForTest => new(resizeGrip.Width * zoom, resizeGrip.Height * zoom);
     internal bool ObjectSelected { get; private set; }
     internal void DeleteSelected() { if (ObjectSelected) remove?.Invoke(); }
     internal void DeleteForTest() => deleteButton?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -58,36 +63,26 @@ internal sealed class InlineTextEditor : Border
             MaxHeight = Math.Max(fontSize * 2, bounds.Height - 2 * (inset + padding)) };
         Input.Document.PagePadding = new Thickness(0);
         LoadText(text, segments);
-        formatHandle = new Button { Content = "A ▾", Width = 43 / zoom, Height = 25 / zoom, FontSize = 17 / zoom,
+        formatHandle = new Button { Content = "A ▾", Width = 43, Height = 30, FontSize = 17,
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, MinHeight = 0,
-            Padding = new Thickness(4 / zoom, 0, 4 / zoom, 0), Margin = new Thickness(2 / zoom),
+            Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(2),
             ToolTip = "書式：選択した文字のフォント・大きさ・色を変更" };
         ToolTipService.SetInitialShowDelay(formatHandle, 200);
-        var grip = new Thumb { Cursor = Cursors.SizeAll, ToolTip = "ドラッグして文字を移動", Width = 30 / zoom, Height = 25 / zoom, Margin = new Thickness(2 / zoom) };
+        moveGrip = new Thumb { Cursor = Cursors.SizeAll, ToolTip = "ドラッグして文字を移動", Width = 30, Height = 30, Margin = new Thickness(2) };
         var gripChrome = new FrameworkElementFactory(typeof(Border));
         gripChrome.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(241, 245, 249)));
         gripChrome.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(203, 213, 225)));
-        gripChrome.SetValue(Border.BorderThicknessProperty, new Thickness(1 / zoom));
-        gripChrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(4 / zoom));
+        gripChrome.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        gripChrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
         var gripText = new FrameworkElementFactory(typeof(TextBlock));
-        gripText.SetValue(TextBlock.TextProperty, "✥"); gripText.SetValue(TextBlock.FontSizeProperty, 19 / zoom);
+        gripText.SetValue(TextBlock.TextProperty, "✥"); gripText.SetValue(TextBlock.FontSizeProperty, 19.0);
         gripText.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(71, 85, 105)));
         gripText.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
         gripText.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
-        gripChrome.AppendChild(gripText); grip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = gripChrome };
-        grip.DragDelta += (_, e) => { MoveTo(Canvas.GetLeft(this) + e.HorizontalChange / this.zoom, Canvas.GetTop(this) + e.VerticalChange / this.zoom); e.Handled = true; };
-        var resizeGrip = new Thumb { Cursor = Cursors.SizeNWSE, ToolTip = "ドラッグして入力欄の幅と高さを変更", Width = 22 / zoom, Height = 22 / zoom, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
-        var resizeChrome = new FrameworkElementFactory(typeof(Border));
-        resizeChrome.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)));
-        resizeChrome.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(59, 130, 246)));
-        resizeChrome.SetValue(Border.BorderThicknessProperty, new Thickness(1 / zoom));
-        resizeChrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(3 / zoom));
-        var resizeIcon = new FrameworkElementFactory(typeof(TextBlock));
-        resizeIcon.SetValue(TextBlock.TextProperty, "◢"); resizeIcon.SetValue(TextBlock.FontSizeProperty, 14 / zoom);
-        resizeIcon.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(59, 130, 246)));
-        resizeIcon.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        resizeIcon.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
-        resizeChrome.AppendChild(resizeIcon); resizeGrip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = resizeChrome };
+        gripChrome.AppendChild(gripText); moveGrip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = gripChrome };
+        moveGrip.DragDelta += (_, e) => { MoveTo(Canvas.GetLeft(this) + e.HorizontalChange / this.zoom, Canvas.GetTop(this) + e.VerticalChange / this.zoom); e.Handled = true; };
+        resizeGrip = new Thumb { Cursor = Cursors.SizeNWSE, ToolTip = "ドラッグして入力欄の幅と高さを変更", HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+        SetGripSize();
         resizeGrip.DragDelta += (_, e) =>
         {
             double availableWidth = Math.Max(1, bounds.Width - Math.Max(0, Canvas.GetLeft(this)));
@@ -96,7 +91,7 @@ internal sealed class InlineTextEditor : Border
             e.Handled = true;
         };
         var inputArea = new Grid();
-        movePopup = new Popup { Child = grip, PlacementTarget = this, Placement = PlacementMode.Top,
+        movePopup = new Popup { Child = moveGrip, PlacementTarget = this, Placement = PlacementMode.Top,
             VerticalOffset = -3, AllowsTransparency = true, StaysOpen = true };
         formatPopup = new Popup { Child = formatHandle, PlacementTarget = this, Placement = PlacementMode.Bottom,
             VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
@@ -174,7 +169,25 @@ internal sealed class InlineTextEditor : Border
     private void HidePalette(object? sender, EventArgs e) { palette.IsOpen = false; movePopup.IsOpen = false; formatPopup.IsOpen = false; }
     private void ShowPalette(object? sender, EventArgs e) { if (!IsLoaded) return; movePopup.IsOpen = true; formatPopup.IsOpen = true; if (formattingRequested) palette.IsOpen = true; }
     internal void ClosePalette() { SetPaletteOpen(false); movePopup.IsOpen = false; formatPopup.IsOpen = false; if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
-    internal void UpdateZoom(double value) { zoom = value; RepositionPalette(); }
+    internal void UpdateZoom(double value) { zoom = value; SetGripSize(); RepositionPalette(); }
+    private void SetGripSize()
+    {
+        resizeGrip.Width = 22 / zoom;
+        resizeGrip.Height = 22 / zoom;
+        var chrome = new FrameworkElementFactory(typeof(Border));
+        chrome.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)));
+        chrome.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(59, 130, 246)));
+        chrome.SetValue(Border.BorderThicknessProperty, new Thickness(1 / zoom));
+        chrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(3 / zoom));
+        var icon = new FrameworkElementFactory(typeof(TextBlock));
+        icon.SetValue(TextBlock.TextProperty, "◢");
+        icon.SetValue(TextBlock.FontSizeProperty, 14 / zoom);
+        icon.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(59, 130, 246)));
+        icon.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        icon.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+        chrome.AppendChild(icon);
+        resizeGrip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = chrome };
+    }
     private void RepositionPalette()
     {
         if (!IsLoaded || (!palette.IsOpen && !movePopup.IsOpen && !formatPopup.IsOpen)) return;

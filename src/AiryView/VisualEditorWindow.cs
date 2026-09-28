@@ -246,22 +246,17 @@ internal sealed class VisualEditorWindow : Window
     internal VisualEditModel? CurrentModelForTest => model;
     private bool IsTextEditorChild(DependencyObject item)
     {
-        for (DependencyObject? current = item; current != null; current = VisualTreeHelper.GetParent(current))
+        for (DependencyObject? current = item; current != null; current = current is Visual
+            ? VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current)
+            : LogicalTreeHelper.GetParent(current))
             if (ReferenceEquals(current, textEditor) || ReferenceEquals(current, shapeEditor)) return true;
         return false;
     }
+    internal bool IsTextEditorChildForTest(DependencyObject item) => IsTextEditorChild(item);
     internal void BeginText(Point point)
     {
         if (model == null) return;
-        CommitEdits(); editingIndex = -1;
-        for (int i = model.Frame.Marks.Length - 1; i >= 0; i--)
-        {
-            var candidate = model.Frame.Marks[i]; if (candidate.Kind != "text") continue;
-            Rect box = EditDrawing.Outline(candidate, model.Frame.Width, model.Frame.Height).Bounds;
-            box.Union(new Rect(candidate.Start, new Size(1, candidate.Size * 1.3)));
-            box.Inflate(6 / zoom, 6 / zoom);
-            if (box.Contains(point)) { editingIndex = i; break; }
-        }
+        CommitEdits(); editingIndex = HitText(point);
         EditMark mark = editingIndex >= 0 ? model.Frame.Marks[editingIndex] : Mark(point, point);
         if (editingIndex < 0 && model.Frame.Marks.Length >= 500) throw new IOException("1ページの書き込みは500個までです。");
         fontSize.Text = mark.Size.ToString(CultureInfo.CurrentCulture);
@@ -279,6 +274,20 @@ internal sealed class VisualEditorWindow : Window
         surface.EditingMarkIndex = editingIndex; surface.Children.Add(textEditor); surface.InvalidateVisual();
         status.Text = "Enterで改行。文字を選んで左下のAアイコンから書体・サイズ・色を変更できます。左上の四方向アイコンで移動、右下のつまみで大きさを調整。選択中の枠はDeleteで削除。Ctrl+Enterで確定、Escで取消。";
     }
+    private int HitText(Point point)
+    {
+        if (model == null) return -1;
+        for (int i = model.Frame.Marks.Length - 1; i >= 0; i--)
+        {
+            var candidate = model.Frame.Marks[i]; if (candidate.Kind != "text") continue;
+            Rect box = EditDrawing.Outline(candidate, model.Frame.Width, model.Frame.Height).Bounds;
+            box.Union(new Rect(candidate.Start, new Size(1, candidate.Size * 1.3)));
+            box.Inflate(6 / zoom, 6 / zoom);
+            if (box.Contains(point)) return i;
+        }
+        return -1;
+    }
+    internal int HitTextForTest(Point point) => HitText(point);
     private void SyncInlineFormatting()
     {
         if (textEditor == null && shapeEditor == null) return;
@@ -331,7 +340,7 @@ internal sealed class VisualEditorWindow : Window
             EditMark mark = model.Frame.Marks[i]; if (mark.Kind == "text") continue;
             if (mark.Kind.StartsWith("highlight", StringComparison.Ordinal))
             {
-                if ((IsRangeHighlightTool || IsFreehandTool) && EditDrawing.Outline(mark, model.Frame.Width, model.Frame.Height).FillContains(point)) return i;
+                if (EditDrawing.Outline(mark, model.Frame.Width, model.Frame.Height).FillContains(point)) return i;
                 continue;
             }
             if (mark.Kind is "rectangle" or "ellipse")
@@ -345,6 +354,7 @@ internal sealed class VisualEditorWindow : Window
         }
         return -1;
     }
+    internal int HitShapeForTest(Point point) => HitShape(point);
     internal void CommitEdits()
     {
         if (model == null) return;
@@ -589,8 +599,10 @@ internal sealed class VisualEditorWindow : Window
                 cropHandle = CropHandle(p); cropAtDragStart = cropSelection ?? Rect.Empty;
                 drag = p; surface.CaptureMouse(); e.Handled = true; return;
             }
-            int hit = HitShape(p);
-            if (hit >= 0) BeginShape(model.Frame.Marks[hit], hit);
+            int textHit = HitText(p);
+            int hit = textHit < 0 ? HitShape(p) : -1;
+            if (textHit >= 0) BeginText(p);
+            else if (hit >= 0) BeginShape(model.Frame.Marks[hit], hit);
             else if (ToolName == "文字") BeginText(p);
             else
             {

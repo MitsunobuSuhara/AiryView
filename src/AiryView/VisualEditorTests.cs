@@ -117,9 +117,16 @@ internal static class VisualEditorTests
         var edgeText = new InlineTextEditor(new Point(380, 20), "", 14, Colors.Black, 1,
             new Size(400, 300), () => { }, () => { });
         Check(Canvas.GetLeft(edgeText) + edgeText.Width <= 400, "text box resize handle remains inside the page at the right edge");
+        var handles = edgeText.MoveHandleSizeForTest;
+        var formatHandle = edgeText.FormatHandleSizeForTest;
+        edgeText.UpdateZoom(2.5);
+        Check(edgeText.MoveHandleSizeForTest == handles && edgeText.FormatHandleSizeForTest == formatHandle
+            && Math.Abs(edgeText.ResizeHandleScreenSizeForTest.Width - 22) < .01,
+            "text handles keep readable screen sizes when zoom changes");
         Check(!preview.ActiveTextEditor!.CanDeleteForTest, "new text has no delete button before it is committed");
         var pendingText = preview.ActiveTextEditor;
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        Check(preview.IsTextEditorChildForTest(pendingText!.Input.Document), "flow document click stays inside its text editor");
         Check(pendingText!.Input.Height < 50 && ScrollViewer.GetHorizontalScrollBarVisibility(pendingText.Input) == ScrollBarVisibility.Disabled,
             "empty rich text box starts compact without a horizontal scrollbar");
         Check(pendingText!.Ink == Colors.Black && !pendingText.PaletteOpenForTest, "text formatting stays hidden while typing");
@@ -157,6 +164,9 @@ internal static class VisualEditorTests
         var editedModel = preview.CurrentModelForTest!;
         Check(editedModel.Frame.Marks[0].FontId == "shippori" && editedModel.Frame.Marks[0].Bold, "inline text retains selected font and bold style");
         Check(editedModel.Frame.Marks.Length == 1 && editedModel.Frame.Marks[0].Text.Contains("二行目"), "inline text box commits multiline text");
+        preview.SelectToolForTest("ハイライト");
+        Check(preview.HitTextForTest(new Point(12, 12)) == 0, "text stays selectable while highlight is the active tool");
+        preview.SelectToolForTest("文字");
         preview.BeginText(new Point(12, 12)); preview.ActiveTextEditor!.PlainText = "修正"; preview.CommitEdits();
         Check(editedModel.Frame.Marks.Length == 1 && editedModel.Frame.Marks[0].Text == "修正", "clicking text updates the existing object");
         editedModel.Undo(); Check(editedModel.Frame.Marks[0].Text.Contains("二行目"), "undo restores text before editing"); editedModel.Redo();
@@ -189,6 +199,10 @@ internal static class VisualEditorTests
         Check(editedModel.Frame.Marks.Length == 2 && editedModel.Frame.Marks[1].End.X == 120 && editedModel.Frame.Marks[1].Start.Y == 80, "moving existing arrow stays inside image without duplicating it");
         editedModel.Undo(); Check(editedModel.Frame.Marks[1].End == new Point(100, 40), "undo restores arrow position");
         var savedArrow = editedModel.Frame.Marks[1];
+        preview.SelectToolForTest("ハイライト");
+        Check(preview.HitShapeForTest(savedArrow.Start + (savedArrow.End - savedArrow.Start) * .5) == 1,
+            "arrow stays selectable while highlight is the active tool");
+        preview.SelectToolForTest("文字");
         preview.BeginShape(savedArrow, 1); preview.ActiveShapeEditor!.SelectFormattingForTest(12, 3); preview.CancelEdits();
         Check(editedModel.Frame.Marks[1] == savedArrow, "canceling palette changes preserves the existing arrow");
         preview.BeginShape(savedArrow, 1);
