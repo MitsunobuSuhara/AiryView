@@ -10,10 +10,12 @@ namespace AiryView;
 internal sealed class InlineTextEditor : Border
 {
     internal TextBox Input { get; }
-    private readonly double inset, padding, headerHeight;
+    private readonly double inset, padding;
     private readonly Size bounds;
     private double zoom;
     private readonly Popup palette;
+    private readonly Popup movePopup;
+    private readonly Popup formatPopup;
     private readonly Button formatHandle;
     private readonly ComboBox fontPicker;
     private readonly TextBox sizePicker;
@@ -33,12 +35,12 @@ internal sealed class InlineTextEditor : Border
     internal bool PaletteOpenForTest => palette.IsOpen;
     internal bool CanDeleteForTest => deleteButton != null;
     internal void DeleteForTest() => deleteButton?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    internal Point TextPosition => new(Canvas.GetLeft(this) + inset + padding, Canvas.GetTop(this) + inset + padding + headerHeight);
+    internal Point TextPosition => new(Canvas.GetLeft(this) + inset + padding, Canvas.GetTop(this) + inset + padding);
 
     internal InlineTextEditor(Point position, string text, double fontSize, Color ink, double zoom, Size bounds, Action accept, Action cancel, Action? remove = null)
     {
         this.bounds = bounds; this.zoom = zoom;
-        inset = 1 / zoom; padding = 4 / zoom; headerHeight = 28 / zoom;
+        inset = 1 / zoom; padding = 4 / zoom;
         BorderBrush = new SolidColorBrush(Color.FromRgb(59, 130, 246)); BorderThickness = new Thickness(inset);
         CornerRadius = new CornerRadius(4 / zoom); Padding = new Thickness(padding); Background = Brushes.Transparent;
         Input = new TextBox { Text = text, AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, MaxLength = 5000,
@@ -78,12 +80,15 @@ internal sealed class InlineTextEditor : Border
         resizeGrip.DragDelta += (_, e) =>
         {
             Width = Math.Clamp(Width + e.HorizontalChange / this.zoom, Math.Min(120 / this.zoom, bounds.Width), bounds.Width);
-            Input.MinHeight = Math.Clamp(Input.MinHeight + e.VerticalChange / this.zoom, Input.FontSize * 1.3, Math.Max(Input.FontSize * 1.3, bounds.Height - headerHeight - 2 * (inset + padding)));
+            Input.MinHeight = Math.Clamp(Input.MinHeight + e.VerticalChange / this.zoom, Input.FontSize * 1.3, Math.Max(Input.FontSize * 1.3, bounds.Height - 2 * (inset + padding)));
             e.Handled = true;
         };
-        var inputArea = new Grid(); inputArea.RowDefinitions.Add(new RowDefinition { Height = new GridLength(headerHeight) }); inputArea.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var inputHeader = new StackPanel { Orientation = Orientation.Horizontal }; inputHeader.Children.Add(grip); inputHeader.Children.Add(formatHandle);
-        inputArea.Children.Add(inputHeader); Grid.SetRow(Input, 1); inputArea.Children.Add(Input); Grid.SetRow(resizeGrip, 1); inputArea.Children.Add(resizeGrip); Child = inputArea;
+        var inputArea = new Grid();
+        movePopup = new Popup { Child = grip, PlacementTarget = this, Placement = PlacementMode.Top,
+            VerticalOffset = -3, AllowsTransparency = true, StaysOpen = true };
+        formatPopup = new Popup { Child = formatHandle, PlacementTarget = this, Placement = PlacementMode.Bottom,
+            VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
+        inputArea.Children.Add(Input); inputArea.Children.Add(resizeGrip); Child = inputArea;
 
         var root = new StackPanel();
         var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 9) }; root.Children.Add(heading);
@@ -117,7 +122,7 @@ internal sealed class InlineTextEditor : Border
         card.SetValue(TextElement.FontFamilyProperty, new FontFamily("Yu Gothic UI")); card.SetValue(TextElement.FontSizeProperty, 12.0);
         card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Width = Math.Min(bounds.Width, Math.Max(card.DesiredSize.Width / zoom, fontSize * 12));
-        palette = new Popup { Child = card, PlacementTarget = this, Placement = PlacementMode.Bottom, VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
+        palette = new Popup { Child = card, PlacementTarget = formatHandle, Placement = PlacementMode.Bottom, VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
         formatHandle.Click += (_, _) => SetPaletteOpen(!formattingRequested);
         Input.GotKeyboardFocus += (_, _) => SetPaletteOpen(false);
         Input.TextChanged += (_, _) => SetPaletteOpen(false);
@@ -130,8 +135,8 @@ internal sealed class InlineTextEditor : Border
         card.PreviewMouseWheel += (_, e) => { if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) { ZoomRequested?.Invoke(e.Delta); e.Handled = true; } };
         fontPicker.SelectionChanged += (_, _) => ChangeFormatting(); sizePicker.TextChanged += (_, _) => ChangeFormatting();
         boldPicker.Checked += (_, _) => ChangeFormatting(); boldPicker.Unchecked += (_, _) => ChangeFormatting();
-        SetAppearance(fontSize, ink); SetFont("MS Gothic", false); MoveTo(position.X - inset - padding, position.Y - inset - padding - headerHeight);
-        Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } Input.Focus(); Input.CaretIndex = Input.Text.Length; };
+        SetAppearance(fontSize, ink); SetFont("MS Gothic", false); MoveTo(position.X - inset - padding, position.Y - inset - padding);
+        Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } movePopup.IsOpen = true; formatPopup.IsOpen = true; Input.Focus(); Input.CaretIndex = Input.Text.Length; };
         Unloaded += (_, _) => { ClosePalette(); if (owner != null) { owner.Deactivated -= HidePalette; owner.Activated -= ShowPalette; } owner = null; };
         LayoutUpdated += (_, _) => RepositionPalette();
     }
@@ -143,23 +148,25 @@ internal sealed class InlineTextEditor : Border
         if (open) RepositionPalette();
     }
     internal void OpenFormattingForTest() => SetPaletteOpen(true);
-    private void HidePalette(object? sender, EventArgs e) => palette.IsOpen = false;
-    private void ShowPalette(object? sender, EventArgs e) { if (IsLoaded && formattingRequested) palette.IsOpen = true; }
-    internal void ClosePalette() { SetPaletteOpen(false); if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
+    private void HidePalette(object? sender, EventArgs e) { palette.IsOpen = false; movePopup.IsOpen = false; formatPopup.IsOpen = false; }
+    private void ShowPalette(object? sender, EventArgs e) { if (!IsLoaded) return; movePopup.IsOpen = true; formatPopup.IsOpen = true; if (formattingRequested) palette.IsOpen = true; }
+    internal void ClosePalette() { SetPaletteOpen(false); movePopup.IsOpen = false; formatPopup.IsOpen = false; if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
     internal void UpdateZoom(double value) { zoom = value; RepositionPalette(); }
     private void RepositionPalette()
     {
-        if (!IsLoaded || !palette.IsOpen) return;
+        if (!IsLoaded || (!palette.IsOpen && !movePopup.IsOpen && !formatPopup.IsOpen)) return;
         Point now = PointToScreen(new Point());
         Size size = new(ActualWidth, ActualHeight);
         if ((now - lastScreenPoint).Length < .1 && Math.Abs(size.Width - lastEditorSize.Width) < .1 && Math.Abs(size.Height - lastEditorSize.Height) < .1) return;
         lastScreenPoint = now; lastEditorSize = size;
-        palette.HorizontalOffset += .01; palette.HorizontalOffset -= .01;
+        if (movePopup.IsOpen) { movePopup.HorizontalOffset += .01; movePopup.HorizontalOffset -= .01; }
+        if (formatPopup.IsOpen) { formatPopup.HorizontalOffset += .01; formatPopup.HorizontalOffset -= .01; }
+        if (palette.IsOpen) { palette.HorizontalOffset += .01; palette.HorizontalOffset -= .01; }
     }
     private void MoveTo(double x, double y)
     {
         Canvas.SetLeft(this, Math.Clamp(x, -inset - padding, Math.Max(0, bounds.Width - Math.Min(Width, 40))));
-        Canvas.SetTop(this, Math.Clamp(y, -inset - padding - headerHeight, Math.Max(0, bounds.Height - Input.FontSize * 1.3 - headerHeight))); RepositionPalette();
+        Canvas.SetTop(this, Math.Clamp(y, -inset - padding, Math.Max(0, bounds.Height - Input.FontSize * 1.3))); RepositionPalette();
     }
     private void ChangeFormatting()
     {

@@ -269,7 +269,7 @@ internal sealed class VisualEditorWindow : Window
         textEditor.SaveRequested += async () => { try { await SaveAsync(); } catch (Exception ex) { ShowError(ex); } };
         textEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = editingIndex; surface.Children.Add(textEditor); surface.InvalidateVisual();
-        status.Text = "Enterで改行。入力欄左上の四方向アイコンで移動、右下のつまみで大きさを調整。「書式」で書体・サイズ・色を変更できます。確定済みの文字は選び直して「削除」できます。Ctrl+Enterで確定、Escで取消。";
+        status.Text = "Enterで改行。入力欄左上の四方向アイコンで移動、右下のつまみで大きさを調整。左下の「書式」で書体・サイズ・色を変更できます。確定済みの文字は選び直して「削除」できます。Ctrl+Enterで確定、Escで取消。";
     }
     private void SyncInlineFormatting()
     {
