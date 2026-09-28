@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media.Effects;
 using ShapePath = System.Windows.Shapes.Path;
@@ -246,6 +247,7 @@ internal sealed class VisualEditorWindow : Window
     internal VisualEditModel? CurrentModelForTest => model;
     private bool IsTextEditorChild(DependencyObject item)
     {
+        if (textEditor != null && item is TextElement or FlowDocument) return true;
         for (DependencyObject? current = item; current != null; current = current is Visual
             ? VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current)
             : LogicalTreeHelper.GetParent(current))

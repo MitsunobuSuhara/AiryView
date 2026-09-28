@@ -2,6 +2,8 @@
 
 更新日: 2026-09-28
 
+最新作業：2.1.19で、文字とハイライトを確定後に文字をクリックすると `System.Windows.Documents.Run は Visual または Visual3D ではありません` のエラーが出てアプリが落ちる問題を修正。原因は入力欄内の `Run` を `Visual` の子として判定していた箇所と、編集画面側で `Run` を文字入力欄内と認識しない箇所。両方修正し、`Run` のクリック判定を自動テストへ追加。Releaseビルドと全自動テスト成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `805B3A9880F752D6E82B84D2825370F03F4CC4B8FF7A331D78566C0D81B638EC`、導入版の編集・UIテストも終了0。利用者の更新後目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。
+
 最新作業：2.1.18で文字入力欄の移動・書式ボタンを画面上で一定の大きさにし、右下サイズ変更つまみも倍率に応じて逆補正。ハイライト等の道具を選んだままでも既存の文字・矢印・線・図形・ハイライトをクリックして再編集可能にした。FlowDocumentのクリックをVisual扱いしていた例外を修正。主画面のタイトルバーを36pxの操作しやすい高さに変更し、閉じるボタンは50px幅。内部PDFリンクで小さな文書を大きな画面に表示した場合、ページ移動後の番号がスクロール通知で戻る問題も修正。Releaseビルドと全自動テスト成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `367901811D1D2DA3F1FF2BE2557ADFE1B671C972933AB8F35C7B9F9C06C399C7`、導入版の編集・UI・PDFリンクテストも終了0。利用者の更新後目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。
 
 最新作業：2.1.17でハイライトのアイコンをマーカー先端と下線が分かる形に調整し、方法選択欄の幅を広げて「フリーハンド」を省略なく表示。Releaseビルドと全自動テスト成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `F334855A5B9A3106989817E94DB2FADDB09CAC821A6374CE17BBA513F58C421D`、導入版のUI・編集テストも終了0。利用者の更新後目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。

@@ -134,7 +134,7 @@ internal sealed class InlineTextEditor : Border
         Input.GotKeyboardFocus += (_, _) => { ObjectSelected = false; SetPaletteOpen(false); };
         PreviewMouseLeftButtonDown += (_, e) =>
         {
-            if (remove != null && e.OriginalSource is DependencyObject source && !Input.IsAncestorOf(source))
+            if (remove != null && e.OriginalSource is DependencyObject source && !IsInputSource(source))
             { ObjectSelected = true; Focus(); }
         };
         Input.TextChanged += (_, _) => { if (!applyingFormat) SetPaletteOpen(false); QueueFitHeight(); };
@@ -159,6 +159,9 @@ internal sealed class InlineTextEditor : Border
         LayoutUpdated += (_, _) => RepositionPalette();
     }
     private static Button ActionButton(string label, string tip) => new() { Content = label, ToolTip = tip, Padding = new Thickness(9, 4, 9, 4), Margin = new Thickness(3, 0, 0, 0), MinHeight = 28, FontSize = 12, Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)) };
+    private bool IsInputSource(DependencyObject source) => ReferenceEquals(source, Input) || source is TextElement or FlowDocument
+        || source is Visual && Input.IsAncestorOf(source);
+    internal bool IsInputSourceForTest(DependencyObject source) => IsInputSource(source);
     private void SetPaletteOpen(bool open)
     {
         formattingRequested = open; palette.IsOpen = open;

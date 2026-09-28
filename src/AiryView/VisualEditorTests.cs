@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Windows.Documents;
 
 namespace AiryView;
 
@@ -127,6 +128,8 @@ internal static class VisualEditorTests
         var pendingText = preview.ActiveTextEditor;
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Check(preview.IsTextEditorChildForTest(pendingText!.Input.Document), "flow document click stays inside its text editor");
+        Check(preview.IsTextEditorChildForTest(new Run("確認")),
+            "rich-text Run click stays inside its text editor");
         Check(pendingText!.Input.Height < 50 && ScrollViewer.GetHorizontalScrollBarVisibility(pendingText.Input) == ScrollBarVisibility.Disabled,
             "empty rich text box starts compact without a horizontal scrollbar");
         Check(pendingText!.Ink == Colors.Black && !pendingText.PaletteOpenForTest, "text formatting stays hidden while typing");
@@ -152,6 +155,8 @@ internal static class VisualEditorTests
         var reopened = new InlineTextEditor(styledMark.Start, styledMark.Text, styledMark.Size, styledMark.Color, 1,
             new Size(400, 300), () => { }, () => { }, segments: styledMark.TextSegments);
         reopened.SetDefaultFont(styledMark.FontId, styledMark.Bold);
+        Check(reopened.IsInputSourceForTest(((Paragraph)reopened.Input.Document.Blocks.FirstBlock!).Inlines.FirstInline!),
+            "clicking a rich-text Run is treated as text input rather than a visual object");
         Check(reopened.Mark.TextSegments is { Length: > 1 } restored && restored.Any(part => part.Text == "赤" && part.Size == 24 && part.Color == Colors.Red)
             && restored.Any(part => part.Text == "青" && part.Size == 18 && part.Color == Colors.Black),
             "reopening one text box preserves mixed character formatting");
