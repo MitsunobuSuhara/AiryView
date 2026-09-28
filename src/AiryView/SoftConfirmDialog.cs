@@ -52,12 +52,22 @@ internal sealed class SoftConfirmDialog : Window
             var button = new Button { Content = label, MinWidth = result == MessageBoxResult.No ? 120 : 84,
                 Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(4, 0, 0, 0),
                 IsDefault = result == MessageBoxResult.Yes, IsCancel = result == MessageBoxResult.Cancel };
-            if (result == MessageBoxResult.Yes)
+            button.GotKeyboardFocus += (_, _) =>
             {
-                button.Background = new SolidColorBrush(Color.FromRgb(71, 121, 189));
-                button.BorderBrush = button.Background;
+                button.Background = new SolidColorBrush(Color.FromRgb(47, 101, 181));
+                button.BorderBrush = new SolidColorBrush(Color.FromRgb(24, 67, 133));
                 button.Foreground = Brushes.White;
-            }
+                button.FontWeight = FontWeights.SemiBold;
+                button.Effect = new DropShadowEffect { Color = Color.FromRgb(47, 101, 181), BlurRadius = 13, ShadowDepth = 0, Opacity = .65 };
+            };
+            button.LostKeyboardFocus += (_, _) =>
+            {
+                button.Background = Brushes.White;
+                button.BorderBrush = new SolidColorBrush(Color.FromRgb(215, 224, 234));
+                button.Foreground = new SolidColorBrush(Color.FromRgb(36, 50, 68));
+                button.FontWeight = FontWeights.Normal;
+                button.Effect = null;
+            };
             button.Click += (_, _) => { choice = result; DialogResult = result != MessageBoxResult.Cancel; };
             buttons.Children.Add(button);
             actionButtons.Add(button);
