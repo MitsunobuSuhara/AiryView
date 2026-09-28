@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing.Printing;
 using System.Text;
+using System.Windows.Input;
 
 namespace AiryView;
 
@@ -31,6 +32,18 @@ public static class SelfTest
                 dialog.ShowDialog();
                 Check(dialog.ChoiceForTest == expected, "未保存の確認: " + label);
             }
+            var keyboardDialog = SoftConfirmDialog.CreateSave(owner, "確認.pdf");
+            keyboardDialog.Loaded += (_, _) => keyboardDialog.Dispatcher.BeginInvoke(() =>
+            {
+                Check((Keyboard.FocusedElement as Button)?.Content as string == "保存", "保存確認の初期選択");
+                keyboardDialog.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(keyboardDialog), 0, Key.Right)
+                    { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+                Check((Keyboard.FocusedElement as Button)?.Content as string == "保存せず閉じる", "右矢印で次の選択肢へ移動");
+                keyboardDialog.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(keyboardDialog), 0, Key.Enter)
+                    { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+            });
+            keyboardDialog.ShowDialog();
+            Check(keyboardDialog.ChoiceForTest == MessageBoxResult.No, "矢印で選んだ項目をEnterで実行");
             foreach (var (label, expected) in new (string, MessageBoxResult)[]
             {
                 ("破棄して閉じる", MessageBoxResult.Yes), ("キャンセル", MessageBoxResult.Cancel)

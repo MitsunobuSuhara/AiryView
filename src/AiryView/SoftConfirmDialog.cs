@@ -1,4 +1,5 @@
 using System.Windows.Media.Effects;
+using System.Windows.Input;
 
 namespace AiryView;
 
@@ -6,6 +7,7 @@ namespace AiryView;
 internal sealed class SoftConfirmDialog : Window
 {
     private MessageBoxResult choice = MessageBoxResult.Cancel;
+    private readonly List<Button> actionButtons = [];
     internal MessageBoxResult ChoiceForTest => choice;
 
     private SoftConfirmDialog(Window owner, string title, string message, params (string Label, MessageBoxResult Result)[] actions)
@@ -58,7 +60,29 @@ internal sealed class SoftConfirmDialog : Window
             }
             button.Click += (_, _) => { choice = result; DialogResult = result != MessageBoxResult.Cancel; };
             buttons.Children.Add(button);
+            actionButtons.Add(button);
         }
+        Loaded += (_, _) => actionButtons[0].Focus();
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Left || e.Key == Key.Right)
+        {
+            int current = actionButtons.IndexOf(Keyboard.FocusedElement as Button ?? actionButtons[0]);
+            if (current < 0) current = 0;
+            int next = (current + (e.Key == Key.Right ? 1 : -1) + actionButtons.Count) % actionButtons.Count;
+            actionButtons[next].Focus();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Enter && Keyboard.FocusedElement is Button selected && actionButtons.Contains(selected))
+        {
+            selected.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            e.Handled = true;
+            return;
+        }
+        base.OnPreviewKeyDown(e);
     }
 
     internal static SoftConfirmDialog CreateSave(Window owner, string fileName) => new(owner, "未保存の変更",

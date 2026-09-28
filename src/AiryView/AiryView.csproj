@@ -10,7 +10,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>AiryView</AssemblyName>
     <ApplicationIcon>../../assets/icons/AiryView.ico</ApplicationIcon>
-    <Version>2.1.6</Version>
+    <Version>2.1.7</Version>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
