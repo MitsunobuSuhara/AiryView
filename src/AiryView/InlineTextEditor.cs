@@ -16,6 +16,7 @@ internal sealed class InlineTextEditor : Border
     private readonly Popup palette;
     private readonly Popup movePopup;
     private readonly Popup formatPopup;
+    private readonly Popup resizePopup;
     private readonly Button formatHandle;
     private readonly Thumb moveGrip;
     private readonly Thumb resizeGrip;
@@ -42,7 +43,10 @@ internal sealed class InlineTextEditor : Border
     internal bool CanDeleteForTest => deleteButton != null;
     internal Size MoveHandleSizeForTest => new(moveGrip.Width, moveGrip.Height);
     internal Size FormatHandleSizeForTest => new(formatHandle.Width, formatHandle.Height);
-    internal Size ResizeHandleScreenSizeForTest => new(resizeGrip.Width * zoom, resizeGrip.Height * zoom);
+    internal Size ResizeHandleScreenSizeForTest => new(resizeGrip.Width, resizeGrip.Height);
+    internal bool ResizeHandleOutsideInputForTest => ReferenceEquals(resizePopup.Child, resizeGrip) && !IsAncestorOf(resizeGrip);
+    internal FrameworkElement ResizeHandleForTest => resizeGrip;
+    internal void MoveForTest(double x, double y) => MoveTo(x, y);
     internal bool ObjectSelected { get; private set; }
     internal void DeleteSelected() { if (ObjectSelected) remove?.Invoke(); }
     internal void DeleteForTest() => deleteButton?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -90,12 +94,16 @@ internal sealed class InlineTextEditor : Border
             Input.Height = Math.Clamp(Input.Height + e.VerticalChange / this.zoom, Input.FontSize * 1.3, Math.Max(Input.FontSize * 1.3, bounds.Height - 2 * (inset + padding)));
             e.Handled = true;
         };
-        var inputArea = new Grid();
         movePopup = new Popup { Child = moveGrip, PlacementTarget = this, Placement = PlacementMode.Top,
             VerticalOffset = -3, AllowsTransparency = true, StaysOpen = true };
         formatPopup = new Popup { Child = formatHandle, PlacementTarget = this, Placement = PlacementMode.Bottom,
             VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
-        inputArea.Children.Add(Input); inputArea.Children.Add(resizeGrip); Child = inputArea;
+        // 文字の右端まで使えるよう、つまみは書式ボタンと同じく枠の外へ置く。
+        resizePopup = new Popup { Child = resizeGrip, PlacementTarget = this, Placement = PlacementMode.Custom,
+            AllowsTransparency = true, StaysOpen = true,
+            CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
+                [new CustomPopupPlacement(new Point(targetSize.Width - popupSize.Width, targetSize.Height + 3), PopupPrimaryAxis.Horizontal)] };
+        Child = Input;
 
         var root = new StackPanel();
         var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 9) }; root.Children.Add(heading);
@@ -154,7 +162,7 @@ internal sealed class InlineTextEditor : Border
         double availableAtPosition = bounds.Width - Math.Max(0, desiredLeft);
         if (availableAtPosition >= Math.Min(120 / zoom, bounds.Width)) Width = Math.Min(Width, availableAtPosition);
         MoveTo(desiredLeft, position.Y - inset - padding);
-        Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } movePopup.IsOpen = true; formatPopup.IsOpen = true; if (ObjectSelected) Focus(); else { Input.Focus(); Input.CaretPosition = Input.Document.ContentEnd; } };
+        Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } movePopup.IsOpen = true; formatPopup.IsOpen = true; resizePopup.IsOpen = true; if (ObjectSelected) Focus(); else { Input.Focus(); Input.CaretPosition = Input.Document.ContentEnd; } };
         Unloaded += (_, _) => { ClosePalette(); if (owner != null) { owner.Deactivated -= HidePalette; owner.Activated -= ShowPalette; } owner = null; };
         LayoutUpdated += (_, _) => RepositionPalette();
     }
@@ -169,22 +177,22 @@ internal sealed class InlineTextEditor : Border
         if (open) RepositionPalette();
     }
     internal void OpenFormattingForTest() => SetPaletteOpen(true);
-    private void HidePalette(object? sender, EventArgs e) { palette.IsOpen = false; movePopup.IsOpen = false; formatPopup.IsOpen = false; }
-    private void ShowPalette(object? sender, EventArgs e) { if (!IsLoaded) return; movePopup.IsOpen = true; formatPopup.IsOpen = true; if (formattingRequested) palette.IsOpen = true; }
-    internal void ClosePalette() { SetPaletteOpen(false); movePopup.IsOpen = false; formatPopup.IsOpen = false; if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
-    internal void UpdateZoom(double value) { zoom = value; SetGripSize(); RepositionPalette(); }
+    private void HidePalette(object? sender, EventArgs e) { palette.IsOpen = false; movePopup.IsOpen = false; formatPopup.IsOpen = false; resizePopup.IsOpen = false; }
+    private void ShowPalette(object? sender, EventArgs e) { if (!IsLoaded) return; movePopup.IsOpen = true; formatPopup.IsOpen = true; resizePopup.IsOpen = true; if (formattingRequested) palette.IsOpen = true; }
+    internal void ClosePalette() { SetPaletteOpen(false); movePopup.IsOpen = false; formatPopup.IsOpen = false; resizePopup.IsOpen = false; if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
+    internal void UpdateZoom(double value) { zoom = value; lastEditorSize = default; RepositionPalette(); }
     private void SetGripSize()
     {
-        resizeGrip.Width = 22 / zoom;
-        resizeGrip.Height = 22 / zoom;
+        resizeGrip.Width = 22;
+        resizeGrip.Height = 22;
         var chrome = new FrameworkElementFactory(typeof(Border));
         chrome.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)));
         chrome.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(59, 130, 246)));
-        chrome.SetValue(Border.BorderThicknessProperty, new Thickness(1 / zoom));
-        chrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(3 / zoom));
+        chrome.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        chrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(3));
         var icon = new FrameworkElementFactory(typeof(TextBlock));
         icon.SetValue(TextBlock.TextProperty, "◢");
-        icon.SetValue(TextBlock.FontSizeProperty, 14 / zoom);
+        icon.SetValue(TextBlock.FontSizeProperty, 14.0);
         icon.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(59, 130, 246)));
         icon.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
         icon.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
@@ -193,18 +201,25 @@ internal sealed class InlineTextEditor : Border
     }
     private void RepositionPalette()
     {
-        if (!IsLoaded || (!palette.IsOpen && !movePopup.IsOpen && !formatPopup.IsOpen)) return;
+        if (!IsLoaded || (!palette.IsOpen && !movePopup.IsOpen && !formatPopup.IsOpen && !resizePopup.IsOpen)) return;
         Point now = PointToScreen(new Point());
         Size size = new(ActualWidth, ActualHeight);
         if ((now - lastScreenPoint).Length < .1 && Math.Abs(size.Width - lastEditorSize.Width) < .1 && Math.Abs(size.Height - lastEditorSize.Height) < .1) return;
         lastScreenPoint = now; lastEditorSize = size;
         if (movePopup.IsOpen) { movePopup.HorizontalOffset += .01; movePopup.HorizontalOffset -= .01; }
         if (formatPopup.IsOpen) { formatPopup.HorizontalOffset += .01; formatPopup.HorizontalOffset -= .01; }
+        if (resizePopup.IsOpen) { resizePopup.HorizontalOffset += .01; resizePopup.HorizontalOffset -= .01; }
         if (palette.IsOpen) { palette.HorizontalOffset += .01; palette.HorizontalOffset -= .01; }
     }
     private void MoveTo(double x, double y)
     {
-        Canvas.SetLeft(this, Math.Clamp(x, -inset - padding, Math.Max(0, bounds.Width - Width)));
+        // 空いている枠幅ではなく、実際の文字幅で右端を制限する。
+        double textWidth = EditDrawing.TextShapes(Mark with { Start = new Point(), End = new Point() })
+            .Select(shape => shape.Geometry.Bounds.IsEmpty ? 0 : shape.Geometry.Bounds.Right).DefaultIfEmpty(0).Max();
+        double minimumWidth = Math.Min(Width, Math.Max(70 / zoom, textWidth + 2 * (inset + padding) + 4 / zoom));
+        double left = Math.Clamp(x, -inset - padding, Math.Max(0, bounds.Width - minimumWidth));
+        Width = Math.Min(Width, bounds.Width - Math.Max(0, left));
+        Canvas.SetLeft(this, left);
         Canvas.SetTop(this, Math.Clamp(y, -inset - padding, Math.Max(0, bounds.Height - Input.Height - 2 * (inset + padding)))); RepositionPalette();
     }
     private void ChangeFontFamily()

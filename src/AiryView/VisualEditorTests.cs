@@ -27,6 +27,20 @@ internal static class VisualEditorTests
             { Color p = Pixel(bitmap, x, y); if (p.R < 100 && p.G < 100 && p.B < 100) ink++; }
         return ink > 30;
     }
+    private static void SavePreview(Window window, string path, FrameworkElement? popup = null)
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            if (popup != null) dc.DrawRectangle(new VisualBrush(popup), null,
+                new Rect(window.PointFromScreen(popup.PointToScreen(new Point())), new Size(popup.ActualWidth, popup.ActualHeight)));
+        }
+        var image = new RenderTargetBitmap((int)Math.Ceiling(window.ActualWidth), (int)Math.Ceiling(window.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+        image.Render(window);
+        image.Render(visual);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
+        using var output = File.Create(path); encoder.Save(output);
+    }
     internal static async Task RunAsync(bool imagesOnly = false)
     {
         string folder = System.IO.Path.GetFullPath("artifacts/editor-tests"); Directory.CreateDirectory(folder);
@@ -82,6 +96,27 @@ internal static class VisualEditorTests
         var preview = new VisualEditorWindow(source, bitmap, 0, _ => Task.CompletedTask, _ => false);
         preview.Show(); await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Check(preview.IsVisible, "image editor opens on demand");
+        var editorBar = (WindowTitleBar)((DockPanel)preview.Content).Children[0];
+        Check(Math.Abs(editorBar.ActualHeight - 30) < 1 && System.Windows.Shell.WindowChrome.GetWindowChrome(preview).CaptionHeight == 30,
+            "editor title bar uses a compact 30 DIP height");
+        var nativeMain = new MainWindow(showWelcome: false);
+        nativeMain.Show();
+        var mainBar = (WindowTitleBar)((DockPanel)nativeMain.Content).Children[0];
+        Check(Math.Abs(mainBar.ActualHeight - editorBar.ActualHeight) < 1,
+            "main and editor share the same title bar height");
+        nativeMain.WindowState = WindowState.Normal;
+        string normalIcon = ((System.Windows.Shapes.Path)mainBar.MaximizeButton.Content).Data.ToString();
+        mainBar.MaximizeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(nativeMain.WindowState == WindowState.Maximized && ((System.Windows.Shapes.Path)mainBar.MaximizeButton.Content).Data.ToString() != normalIcon,
+            "maximize changes to the overlapping restore icon");
+        mainBar.MaximizeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(nativeMain.WindowState == WindowState.Normal, "restore caption button restores normal size");
+        mainBar.MinimizeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(nativeMain.WindowState == WindowState.Minimized, "minimize caption button minimizes the window");
+        nativeMain.WindowState = WindowState.Normal;
+        mainBar.CloseButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(!nativeMain.IsVisible, "close caption button closes through the normal window handler");
+        SavePreview(preview, folder + "/editor-title-bar.png");
         Check(preview.SaveButtonWidthForTest >= 154, "save-as button keeps enough width for its Japanese label");
         Check(preview.CentimeterTextForTest.Contains("3.18 cm") && preview.CentimeterTextForTest.Contains("2.12 cm") && preview.CentimeterTextForTest.Contains("96 dpi換算"), "image dimensions show clearly labeled centimeter estimates below pixels");
         Check(preview.ToolNamesForTest.SequenceEqual(new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) && preview.HighlightMethodNamesForTest.SequenceEqual(new[] { "範囲指定", "フリーハンド" }) && preview.ToolWidthForTest >= 140
@@ -118,6 +153,37 @@ internal static class VisualEditorTests
         var edgeText = new InlineTextEditor(new Point(380, 20), "", 14, Colors.Black, 1,
             new Size(400, 300), () => { }, () => { });
         Check(Canvas.GetLeft(edgeText) + edgeText.Width <= 400, "text box resize handle remains inside the page at the right edge");
+        var rightText = new InlineTextEditor(new Point(120, 20), "たぬき\n狐\nねこ", 14, Colors.Black, 1,
+            new Size(400, 300), () => { }, () => { });
+        double originalWidth = rightText.Width;
+        rightText.MoveForTest(330, 20);
+        Check(Canvas.GetLeft(rightText) == 330 && rightText.Width < originalWidth
+            && Canvas.GetLeft(rightText) + rightText.Width <= 400 && rightText.PlainText == "たぬき\n狐\nねこ",
+            "short multiline text moves right by shrinking unused frame width without changing text");
+        Check(rightText.ResizeHandleOutsideInputForTest, "resize handle stays outside the text input");
+        rightText.MoveForTest(399, 20);
+        Check(EditDrawing.TextShapes(rightText.Mark).All(shape => shape.Geometry.Bounds.Right <= 400),
+            "moving to the page edge keeps actual text inside the page");
+        var textCanvas = new Canvas { Width = 400, Height = 300, Background = Brushes.White };
+        textCanvas.Children.Add(rightText);
+        var textHost = new Window { Content = textCanvas, Width = 460, Height = 390, Title = "文字の右端テスト" };
+        try
+        {
+            textHost.Show();
+            await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            var paragraph = (Paragraph)rightText.Input.Document.Blocks.FirstBlock!;
+            Check(Math.Abs(paragraph.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward).Y
+                - paragraph.ContentEnd.GetCharacterRect(System.Windows.Documents.LogicalDirection.Backward).Y) < 1,
+                "moving short Japanese text to the right edge does not wrap its first line");
+            Check(rightText.ResizeHandleForTest.PointToScreen(new Point()).Y >= rightText.PointToScreen(new Point(0, rightText.ActualHeight)).Y,
+                "visible resize handle is below the frame without covering text");
+            SavePreview(textHost, folder + "/right-edge-text.png", rightText.ResizeHandleForTest);
+            textCanvas.LayoutTransform = new ScaleTransform(2.5, 2.5); rightText.UpdateZoom(2.5);
+            await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Check(Math.Abs(rightText.ResizeHandleForTest.ActualWidth - 22) < 1,
+                "floating resize handle retains its screen size at increased page zoom");
+        }
+        finally { textHost.Close(); }
         var handles = edgeText.MoveHandleSizeForTest;
         var formatHandle = edgeText.FormatHandleSizeForTest;
         edgeText.UpdateZoom(2.5);

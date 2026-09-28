@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 Add-Type -AssemblyName System.Drawing
 $taskSource = [Drawing.Bitmap]::new((Join-Path $taskRoot 'assets\icons\AiryView-symbol-white-transparent.png'))
@@ -11,9 +11,16 @@ try {
         $taskMemory = [IO.MemoryStream]::new()
         try {
             $taskGraphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $taskGraphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
             $taskGraphics.Clear([Drawing.Color]::Transparent)
-            # 明るい背景でも白い鶴が消えないよう、配布ICOだけに軽い濃色の円を置く。
-            $taskBrush = [Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(255,38,45,55))
+            # 白い鶴を見やすく保ち、タイトルバーと同じ青緑の濃淡を円の背景へ使う。
+            $taskBrush = [Drawing.Drawing2D.LinearGradientBrush]::new(
+                [Drawing.Rectangle]::new(0,0,$taskSize,$taskSize),
+                [Drawing.Color]::FromArgb(20,47,64), [Drawing.Color]::FromArgb(12,52,76), 0.0)
+            $taskBlend = [Drawing.Drawing2D.ColorBlend]::new(3)
+            $taskBlend.Colors = @([Drawing.Color]::FromArgb(20,47,64),[Drawing.Color]::FromArgb(20,80,106),[Drawing.Color]::FromArgb(12,52,76))
+            $taskBlend.Positions = @([single]0,[single]0.48,[single]1)
+            $taskBrush.InterpolationColors = $taskBlend
             try { $taskGraphics.FillEllipse($taskBrush,0,0,$taskSize-1,$taskSize-1) } finally { $taskBrush.Dispose() }
             # タスクバーでツルがほかのアプリアイコンより小さく見えないよう、
             # 小さいサイズだけを少し拡大する。128px以上の資料用表示は変えない。

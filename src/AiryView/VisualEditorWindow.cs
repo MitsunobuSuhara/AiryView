@@ -140,6 +140,7 @@ internal sealed class VisualEditorWindow : Window
         Width = 1100; Height = 820; MinWidth = 740; MinHeight = 520; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         FontFamily = new FontFamily("Yu Gothic UI"); FontSize = 14; Background = new SolidColorBrush(Color.FromRgb(247, 249, 252));
         var root = new DockPanel(); Content = root;
+        WindowTitleBar.Install(this, root);
         controls.Background = new SolidColorBrush(Color.FromRgb(250, 251, 253));
         DockPanel.SetDock(controls, Dock.Top); root.Children.Add(controls);
         DockPanel.SetDock(status, Dock.Bottom); root.Children.Add(status);
