@@ -169,6 +169,8 @@ internal static class VisualEditorTests
         editedModel.Undo(); Check(editedModel.Frame.Marks.Length == 3 && editedModel.Frame.Marks[^1].Kind == "line", "undo restores deleted line");
         editedModel.Undo(); Check(editedModel.Frame.Marks.Length == 2, "line popup edit can be undone");
         preview.BeginShape(new("highlight", new(10, 10), new(80, 35), "", Colors.Yellow, 1));
+        await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        Check(preview.ActiveShapeEditor!.HandlesClearOfPaletteForTest, "highlight corner handles remain clear of the nearby palette");
         preview.ActiveShapeEditor!.SelectFormattingForTest(1, 1);
         preview.ActiveShapeEditor.MoveEndpoint(false, new Vector(10, 5)); preview.CommitEdits();
         Check(editedModel.Frame.Marks.Last() is { Kind: "highlight", End.X: 90, End.Y: 40 } && editedModel.Frame.Marks.Last().Color == Colors.HotPink, "highlight palette changes color and corner handles resize the area");

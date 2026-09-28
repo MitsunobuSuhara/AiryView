@@ -21,6 +21,16 @@ internal sealed class InlineShapeEditor : Canvas
     internal event Action? SaveRequested;
     internal event Action<int>? ZoomRequested;
     internal bool PaletteOpenForTest => palette.IsOpen;
+    internal bool HandlesClearOfPaletteForTest
+    {
+        get
+        {
+            if (!palette.IsOpen || palette.Child is not FrameworkElement card || !card.IsLoaded) return false;
+            static Rect ScreenRect(FrameworkElement element) => new(element.PointToScreen(new Point()), element.PointToScreen(new Point(element.ActualWidth, element.ActualHeight)));
+            Rect panel = ScreenRect(card);
+            return !panel.IntersectsWith(ScreenRect(start)) && !panel.IntersectsWith(ScreenRect(end));
+        }
+    }
     internal void DeleteForTest() => deleteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private readonly double unit;
     internal InlineShapeEditor(EditMark mark, double zoom, Size bounds, Action accept, Action cancel, Action remove, string sizeUnit = "pt")
@@ -67,7 +77,7 @@ internal sealed class InlineShapeEditor : Canvas
             BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
             Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 3, Opacity = .18, Color = Colors.Black } };
         card.SetValue(TextElement.FontFamilyProperty, new FontFamily("Yu Gothic UI")); card.SetValue(TextElement.FontSizeProperty, 12.0);
-        palette = new Popup { Child = card, PlacementTarget = move, Placement = PlacementMode.Bottom, VerticalOffset = 6, AllowsTransparency = true, StaysOpen = true };
+        palette = new Popup { Child = card, PlacementTarget = Mark.Start.Y >= Mark.End.Y ? start : end, Placement = PlacementMode.Bottom, VerticalOffset = 12, AllowsTransparency = true, StaysOpen = true };
         sizePicker.TextChanged += (_, _) =>
         {
             if (syncing || !double.TryParse(sizePicker.Text, out double size) || !double.IsFinite(size) || size <= 0 || size > 1000) return;
@@ -102,7 +112,7 @@ internal sealed class InlineShapeEditor : Canvas
     }
     private Thumb Handle(string tip, Cursor cursor)
     {
-        var thumb = new Thumb { Width = 12 * unit, Height = 12 * unit, Background = Brushes.LightBlue, BorderBrush = Brushes.DodgerBlue, BorderThickness = new Thickness(unit), Cursor = cursor, ToolTip = tip };
+        var thumb = new Thumb { Width = 18 * unit, Height = 18 * unit, Background = Brushes.LightBlue, BorderBrush = Brushes.DodgerBlue, BorderThickness = new Thickness(unit), Cursor = cursor, ToolTip = tip };
         Children.Add(thumb); return thumb;
     }
     private Point Clamp(Point point) => new(Math.Clamp(point.X, 0, Width), Math.Clamp(point.Y, 0, Height));
@@ -137,6 +147,7 @@ internal sealed class InlineShapeEditor : Canvas
     {
         Point middle = Mark.Start + (Mark.End - Mark.Start) * .5;
         Place(start, Mark.Start); Place(end, Mark.End); Place(move, middle);
+        palette.PlacementTarget = Mark.Start.Y >= Mark.End.Y ? start : end;
         RepositionPalette();
         InvalidateVisual();
     }
