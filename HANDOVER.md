@@ -2,6 +2,8 @@
 
 更新日: 2026-09-28
 
+最新作業：2.1.17でハイライトのアイコンをマーカー先端と下線が分かる形に調整し、方法選択欄の幅を広げて「フリーハンド」を省略なく表示。Releaseビルドと全自動テスト成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `F334855A5B9A3106989817E94DB2FADDB09CAC821A6374CE17BBA513F58C421D`、導入版のUI・編集テストも終了0。利用者の更新後目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。
+
 最新作業：2.1.16で画像・PDF編集のツール選択欄にある全アイコン列を左へ寄せた。文字は枠付きT、矢印は明確な矢じり、線は端点付き、四角形・円／楕円は操作点付き、ハイライトはマーカー形、範囲指定・フリーハンドも判別しやすい輪郭へ更新。Releaseビルドと全自動テスト成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `7ED41C6EFC65E81D27A634DEC19F65AB61581F13CE6C186DDD31CD739EBE300C`、導入版のUI・編集テストも終了0。利用者の更新後目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。
 
 最新作業：2.1.15で既存の文字を選択した状態ならDeleteキーでテキストボックスごと削除できるようにした。文字入力中のDeleteは文字編集のまま。選択中の矢印・線・図形・ハイライトもDeleteで削除し、数値入力欄のDeleteは入力編集に使う。ページ右端に置いた文字入力欄は幅を残り領域へ合わせ、移動・サイズ変更後も右下のつまみが用紙内に収まるようにした。READMEと自動テストを更新。Releaseビルドと全自動テスト成功。Program Filesへ導入、インストーラー終了0、ビルド／導入DLL SHA256一致 `EEA151F5B7EB86EBDE00D34F4DABEFF334BE4D483FFD59C23582E9ACC6D33319`、導入版のUI・編集テストも終了0。利用者の更新後目視は未確認。無関係な `scripts/create-airyview-story.py` はcommit対象外。小修正のためGitHub Releaseは作成せず、最新公開Releaseはv2.1.4。

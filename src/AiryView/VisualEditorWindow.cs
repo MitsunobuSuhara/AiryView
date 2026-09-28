@@ -17,7 +17,7 @@ internal sealed class ToolIconConverter : IValueConverter
         "線" => Geometry.Parse("M 5,15 L 15,5 M 2,14 L 5,14 L 5,17 L 2,17 Z M 15,3 L 18,3 L 18,6 L 15,6 Z"),
         "四角形" => Geometry.Parse("M 3,4 L 16,4 L 16,15 L 3,15 Z M 1,2 L 5,2 L 5,6 L 1,6 Z M 14,13 L 18,13 L 18,17 L 14,17 Z"),
         "円・楕円" => Geometry.Parse("M 3,10 A 7,5 0 1 1 17,10 A 7,5 0 1 1 3,10 Z M 1,8 L 4,8 L 4,11 L 1,11 Z M 16,8 L 19,8 L 19,11 L 16,11 Z"),
-        "ハイライト" => Geometry.Parse("M 5,12 L 11,3 L 17,7 L 11,16 L 5,12 Z M 3,18 L 18,18 M 8,12 L 14,6"),
+        "ハイライト" => Geometry.Parse("M 7,13 L 12,4 L 16,6 L 11,15 Z M 7,13 L 11,15 L 9,18 L 4,18 Z M 3,19 L 18,19"),
         "範囲指定" => Geometry.Parse("M 2,2 L 7,2 M 13,2 L 18,2 L 18,7 M 18,13 L 18,18 L 13,18 M 7,18 L 2,18 L 2,13 M 2,7 L 2,2 M 7,7 L 13,7 L 13,13 L 7,13 Z"),
         "フリーハンド" => Geometry.Parse("M 2,15 C 4,4 7,18 10,10 C 12,3 15,16 18,5 M 15,4 L 18,5 L 17,8"),
         _ => Geometry.Empty
@@ -92,7 +92,7 @@ internal sealed class VisualEditorWindow : Window
     private readonly EditSurface surface = new() { Focusable = true, ClipToBounds = true };
     private readonly ScrollViewer viewer = new() { Background = new SolidColorBrush(Color.FromRgb(232, 237, 244)), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly ComboBox tool = new() { Width = 142, Margin = new Thickness(4), SelectedIndex = 0, ToolTip = "文字：用紙をクリックして入力\n矢印・線・四角形・円／楕円：ドラッグして配置\nハイライト：選択後に範囲指定またはフリーハンドを選択\n配置した文字・図形はクリックして再編集" };
-    private readonly ComboBox highlightMethod = new() { Width = 124, Margin = new Thickness(4), Visibility = Visibility.Collapsed, ToolTip = "ハイライトの方法\n範囲指定：PDFの文字には自動でフィット、画像では四角い範囲\nフリーハンド：描いた軌跡に沿う" };
+    private readonly ComboBox highlightMethod = new() { Width = 166, Margin = new Thickness(4), Visibility = Visibility.Collapsed, ToolTip = "ハイライトの方法\n範囲指定：PDFの文字には自動でフィット、画像では四角い範囲\nフリーハンド：描いた軌跡に沿う" };
     private readonly ComboBox color = new() { Width = 80, Margin = new Thickness(4), SelectedIndex = 1 };
     private readonly ComboBox font = new() { Width = 190, Margin = new Thickness(4), ToolTip = "文字のフォント" };
     private readonly CheckBox bold = new() { Content = "太字", Margin = new Thickness(5), VerticalAlignment = VerticalAlignment.Center };
@@ -164,7 +164,7 @@ internal sealed class VisualEditorWindow : Window
             AsyncButton(commands, "次のページ", () => LoadPage(page + 1));
         }
         var writing = new WrapPanel { Margin = new Thickness(5) }; controls.Children.Add(writing);
-        tool.ItemTemplate = ToolTemplate(100); highlightMethod.ItemTemplate = ToolTemplate(87);
+        tool.ItemTemplate = ToolTemplate(100); highlightMethod.ItemTemplate = ToolTemplate(126);
         foreach (string name in new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) tool.Items.Add(name);
         foreach (string name in new[] { "範囲指定", "フリーハンド" }) highlightMethod.Items.Add(name);
         highlightMethod.SelectedIndex = 0;
@@ -427,6 +427,7 @@ internal sealed class VisualEditorWindow : Window
     internal bool HighlightMethodVisibleForTest => highlightMethod.Visibility == Visibility.Visible;
     internal void SelectToolForTest(string name) => tool.SelectedItem = name;
     internal double ToolWidthForTest => tool.Width;
+    internal double HighlightMethodWidthForTest => highlightMethod.Width;
     internal bool CropModeForTest => cropMode;
     internal Rect? CropSelectionForTest => cropSelection;
     internal string CropSizeTextForTest => surface.CropSizeText ?? "";

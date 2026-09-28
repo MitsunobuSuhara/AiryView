@@ -83,7 +83,8 @@ internal static class VisualEditorTests
         Check(preview.IsVisible, "image editor opens on demand");
         Check(preview.SaveButtonWidthForTest >= 154, "save-as button keeps enough width for its Japanese label");
         Check(preview.CentimeterTextForTest.Contains("3.18 cm") && preview.CentimeterTextForTest.Contains("2.12 cm") && preview.CentimeterTextForTest.Contains("96 dpi換算"), "image dimensions show clearly labeled centimeter estimates below pixels");
-        Check(preview.ToolNamesForTest.SequenceEqual(new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) && preview.HighlightMethodNamesForTest.SequenceEqual(new[] { "範囲指定", "フリーハンド" }) && preview.ToolWidthForTest >= 140, "image editor nests two highlight methods under highlight");
+        Check(preview.ToolNamesForTest.SequenceEqual(new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) && preview.HighlightMethodNamesForTest.SequenceEqual(new[] { "範囲指定", "フリーハンド" }) && preview.ToolWidthForTest >= 140
+            && preview.HighlightMethodWidthForTest >= 160, "highlight method keeps its full label visible beside the icon");
         Check(preview.ToolIconsReadyForTest, "all tool choices and highlight methods have right-side vector icons");
         Check(!preview.HighlightMethodVisibleForTest, "highlight method selector stays hidden during other tools");
         preview.SelectToolForTest("ハイライト"); Check(preview.HighlightMethodVisibleForTest, "highlight selection reveals its two drawing methods"); preview.SelectToolForTest("文字");
