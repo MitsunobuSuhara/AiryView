@@ -602,7 +602,9 @@ public static class SelfTest
         var host = (StackPanel)window.FindName("PagesHost");
         var pageNumber = (TextBox)window.FindName("PageNumber");
         var pageCount = (TextBlock)window.FindName("PageCount");
-        Check(pageNumber.TextAlignment == TextAlignment.Center && pageNumber.HorizontalContentAlignment == HorizontalAlignment.Center && pageNumber.VerticalContentAlignment == VerticalAlignment.Center && pageCount.MinWidth >= 42 && pageCount.VerticalAlignment == VerticalAlignment.Center, "ページ番号と総ページ数を中央高さで整列");
+        Check(pageNumber.TextAlignment == TextAlignment.Center && pageNumber.HorizontalContentAlignment == HorizontalAlignment.Center && pageNumber.VerticalContentAlignment == VerticalAlignment.Center && pageCount.VerticalAlignment == VerticalAlignment.Center, "ページ番号と総ページ数を中央高さで整列");
+        double pageCountGap = pageButtons[1].TranslatePoint(new Point(0, 0), window).X - pageCount.TranslatePoint(new Point(pageCount.ActualWidth, 0), window).X;
+        Check(pageCountGap >= 0 && pageCountGap <= 20, $"総ページ数と次ページボタンの余白を抑える ({pageCountGap:0.#}px)");
         Check(host.Children.Count == pageTotal, "PDFの全ページを連続して配置");
         var firstSurface = (Grid)host.Children[0];
         var firstBitmap = (BitmapSource)((Image)firstSurface.Children[0]).Source;
@@ -645,6 +647,9 @@ public static class SelfTest
         EnterZoom("100");
         await Task.Delay(300); window.UpdateLayout();
         Check(Near(second.Height, oldHeight) && zoomInput.Text == "100", "倍率手入力で100％へ正確に戻す");
+        EnterZoom("125.55"); window.UpdateLayout();
+        Check(zoomInput.Text == "125.55", "小数点付きの倍率を欠けずに表示する");
+        Capture(window, "artifacts/zoom-decimal-window.png");
         EnterZoom("125%");
         Check(Near(second.Height, oldHeight * 1.25), "％付きの倍率手入力を反映");
         EnterZoom("NaN");

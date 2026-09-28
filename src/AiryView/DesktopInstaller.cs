@@ -132,7 +132,7 @@ public static class DesktopInstaller
         RemoveLegacyRegistrations(supportedExtensions);
         using var uninstall = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\AiryView");
         uninstall.SetValue("DisplayName", "AiryView");
-        uninstall.SetValue("DisplayVersion", "2.1.4");
+        uninstall.SetValue("DisplayVersion", "2.1.5");
         uninstall.SetValue("Publisher", "AiryView");
         uninstall.SetValue("InstallLocation", folder);
         uninstall.SetValue("DisplayIcon", IconLocation(exe));
