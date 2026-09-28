@@ -1175,13 +1175,13 @@ public partial class MainWindow : Window
     private bool CanClose(TextTabState state)
     {
         if (!state.CanEdit || !state.Dirty) return true;
-        var result = MessageBox.Show(this, $"{System.IO.Path.GetFileName(state.Path)} の変更を保存しますか？", "未保存の変更", MessageBoxButton.YesNoCancel);
+        var result = SoftConfirmDialog.AskSave(this, string.IsNullOrEmpty(state.Path) ? "無題.txt" : System.IO.Path.GetFileName(state.Path));
         return result == MessageBoxResult.No || result == MessageBoxResult.Yes && SaveText(state);
     }
     private bool CanClose(TabState state)
     {
         if (!state.Document.Dirty) return true;
-        var result = MessageBox.Show(this, $"{System.IO.Path.GetFileName(state.Document.Path)} の変更を保存しますか？", "未保存の変更", MessageBoxButton.YesNoCancel);
+        var result = SoftConfirmDialog.AskSave(this, System.IO.Path.GetFileName(state.Document.Path));
         return result == MessageBoxResult.No || result == MessageBoxResult.Yes && Save(state);
     }
     private void CloseTabClick(object s, RoutedEventArgs e)

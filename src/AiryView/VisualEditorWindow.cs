@@ -214,7 +214,7 @@ internal sealed class VisualEditorWindow : Window
         {
             if (busy) { e.Cancel = true; return; }
             try { CommitEdits(); } catch (Exception ex) { e.Cancel = true; ShowError(ex); return; }
-            if (pages.Values.Any(m => m.Dirty) && MessageBox.Show(this, "保存していない編集を破棄して閉じますか？", "AiryView", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) e.Cancel = true;
+            if (pages.Values.Any(m => m.Dirty) && !SoftConfirmDialog.AskDiscard(this)) e.Cancel = true;
             if (!e.Cancel && cropPopup != null) cropPopup.IsOpen = false;
         };
     }

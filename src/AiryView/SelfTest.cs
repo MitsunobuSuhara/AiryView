@@ -13,6 +13,39 @@ public static class SelfTest
         Results.Add("PASS: " + name);
     }
     private static bool Near(double a, double b, double tolerance = .05) => Math.Abs(a - b) <= tolerance;
+    internal static void RunDialog()
+    {
+        Directory.CreateDirectory("artifacts");
+        var owner = new Window { Width = 200, Height = 120, ShowInTaskbar = false };
+        owner.Show();
+        try
+        {
+            foreach (var (label, expected) in new (string, MessageBoxResult)[]
+            {
+                ("保存", MessageBoxResult.Yes), ("保存せず閉じる", MessageBoxResult.No), ("キャンセル", MessageBoxResult.Cancel)
+            })
+            {
+                var dialog = SoftConfirmDialog.CreateSave(owner, "確認.pdf");
+                dialog.Loaded += (_, _) => dialog.Dispatcher.BeginInvoke(() =>
+                    FindButtons(dialog).First(button => button.Content as string == label).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+                dialog.ShowDialog();
+                Check(dialog.ChoiceForTest == expected, "未保存の確認: " + label);
+            }
+            foreach (var (label, expected) in new (string, MessageBoxResult)[]
+            {
+                ("破棄して閉じる", MessageBoxResult.Yes), ("キャンセル", MessageBoxResult.Cancel)
+            })
+            {
+                var dialog = SoftConfirmDialog.CreateDiscard(owner);
+                dialog.Loaded += (_, _) => dialog.Dispatcher.BeginInvoke(() =>
+                    FindButtons(dialog).First(button => button.Content as string == label).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+                dialog.ShowDialog();
+                Check(dialog.ChoiceForTest == expected, "編集画面を閉じる確認: " + label);
+            }
+            File.WriteAllLines("artifacts/dialog-test-results.txt", Results);
+        }
+        finally { owner.Close(); }
+    }
     public static async Task RunStartupAsync()
     {
         Directory.CreateDirectory("artifacts");

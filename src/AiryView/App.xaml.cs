@@ -21,6 +21,13 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args.Contains("--dialog-test"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try { SelfTest.RunDialog(); Shutdown(0); }
+            catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
         if (e.Args.Contains("--pdf-link-test"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

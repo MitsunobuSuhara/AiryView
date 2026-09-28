@@ -547,3 +547,8 @@ PDF寸法取得の本文解析・繰返し取得、WebP/SVGのPNG中間変換、
 - ZIP: AiryView-2.0.18-20260926-194150.zip、184046997 bytes。SHA256: 11212D9D77FEF7408B2294914EFD41B39DE762D792EE56ADBF0B98193945BFDF。GitHub側のdigest・サイズと一致し、収録DLLも実機導入済み2.0.18と一致。収録PDFはSamples/print-check.pdfだけ。
 - 利用者の依頼に従い、v2.0.17（release ID 397191642）とv2.0.15（397175688）をdraft=trueへ変更。一般公開から外れ、所有者にはDraftとして残る。ZIP・リリース本文・タグ・Git履歴は保持。以前の日付のリリースは変更していない。
 - 変更前の公開設定をartifacts/release-2.0.17-before-unpublish.json、release-2.0.15-before-unpublish.jsonへ保存。配布一覧はartifacts/release-2.0.18-manifest.csv。実機の印刷プレビュー操作中に利用者入力を検出したため追加操作を中止したが、テストのプレビュー画像・Windows印刷出力の寸法と描画・インストール済み版での原本表示は確認済み。
+# 2026-09-28 閉じる確認と回転アイコン
+
+- PDF・テキストの未保存確認と画像編集の破棄確認を、丸みのある明るい確認ウィンドウへ変更。保存／保存せず閉じる／キャンセルと破棄／キャンセルの選択結果は従来どおり。
+- 左右回転アイコンをベクター描画にして、他の操作アイコンと見た目の大きさをそろえた。
+- `--dialog-test` で各選択結果5件、`--ui-test` と `--editor-test` で既存画面を検証。無関係な `scripts/create-airyview-story.py` は変更・commit対象外。
