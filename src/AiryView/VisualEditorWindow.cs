@@ -201,6 +201,8 @@ internal sealed class VisualEditorWindow : Window
         PreviewKeyDown += async (_, e) =>
         {
             if (busy) return;
+            if (e.Key == Key.Delete && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
+                && DeleteSelectedObject()) { e.Handled = true; return; }
             if ((textEditor != null || shapeEditor != null) && e.Key == Key.Escape) { CancelEdits(); e.Handled = true; return; }
             if ((textEditor != null || shapeEditor != null) && e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) != 0) { CommitEdits(); surface.Focus(); e.Handled = true; return; }
             if (e.Key == Key.Escape) { if (cropMode) CancelCrop(); else CancelDrag(); e.Handled = true; }
@@ -235,6 +237,12 @@ internal sealed class VisualEditorWindow : Window
     private void ShowError(Exception ex) => MessageBox.Show(this, ex.Message, "編集できませんでした", MessageBoxButton.OK, MessageBoxImage.Warning);
     internal InlineTextEditor? ActiveTextEditor => textEditor;
     internal InlineShapeEditor? ActiveShapeEditor => shapeEditor;
+    internal bool DeleteSelectedObject()
+    {
+        if (textEditor?.ObjectSelected == true) { textEditor.DeleteSelected(); return true; }
+        if (shapeEditor != null) { shapeEditor.DeleteSelected(); return true; }
+        return false;
+    }
     internal VisualEditModel? CurrentModelForTest => model;
     private bool IsTextEditorChild(DependencyObject item)
     {
@@ -269,7 +277,7 @@ internal sealed class VisualEditorWindow : Window
         textEditor.SaveRequested += async () => { try { await SaveAsync(); } catch (Exception ex) { ShowError(ex); } };
         textEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = editingIndex; surface.Children.Add(textEditor); surface.InvalidateVisual();
-        status.Text = "Enterで改行。文字を選んで左下のAアイコンから書体・サイズ・色を変更できます。左上の四方向アイコンで移動、右下のつまみで大きさを調整。Ctrl+Enterで確定、Escで取消。";
+        status.Text = "Enterで改行。文字を選んで左下のAアイコンから書体・サイズ・色を変更できます。左上の四方向アイコンで移動、右下のつまみで大きさを調整。選択中の枠はDeleteで削除。Ctrl+Enterで確定、Escで取消。";
     }
     private void SyncInlineFormatting()
     {

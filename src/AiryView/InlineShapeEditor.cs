@@ -14,6 +14,7 @@ internal sealed class InlineShapeEditor : Canvas
     private readonly TextBox sizePicker;
     private readonly Button colorPicker;
     private Button deleteButton = null!;
+    private readonly Action remove;
     private bool syncing;
     private Window? owner;
     private Point lastScreenPoint;
@@ -32,10 +33,11 @@ internal sealed class InlineShapeEditor : Canvas
         }
     }
     internal void DeleteForTest() => deleteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    internal void DeleteSelected() => remove();
     private readonly double unit;
     internal InlineShapeEditor(EditMark mark, double zoom, Size bounds, Action accept, Action cancel, Action remove, string sizeUnit = "pt")
     {
-        Mark = mark; Width = bounds.Width; Height = bounds.Height; unit = 1 / zoom;
+        Mark = mark; Width = bounds.Width; Height = bounds.Height; unit = 1 / zoom; this.remove = remove;
         bool highlight = mark.Kind.StartsWith("highlight", StringComparison.Ordinal);
         bool area = highlight && mark.Kind != "highlight-freehand";
         bool figure = mark.Kind is "rectangle" or "ellipse";

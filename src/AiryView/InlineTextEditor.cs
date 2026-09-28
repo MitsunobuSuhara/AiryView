@@ -22,6 +22,7 @@ internal sealed class InlineTextEditor : Border
     private readonly ToggleButton boldPicker;
     private readonly Button colorPicker;
     private readonly Button? deleteButton;
+    private readonly Action? remove;
     private readonly Dictionary<string, string> fontIds = new(StringComparer.OrdinalIgnoreCase);
     private bool syncing;
     private bool applyingFormat;
@@ -37,12 +38,15 @@ internal sealed class InlineTextEditor : Border
     internal string FontId { get; private set; } = "MS Gothic";
     internal bool PaletteOpenForTest => palette.IsOpen;
     internal bool CanDeleteForTest => deleteButton != null;
+    internal bool ObjectSelected { get; private set; }
+    internal void DeleteSelected() { if (ObjectSelected) remove?.Invoke(); }
     internal void DeleteForTest() => deleteButton?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     internal Point TextPosition => new(Canvas.GetLeft(this) + inset + padding, Canvas.GetTop(this) + inset + padding);
 
     internal InlineTextEditor(Point position, string text, double fontSize, Color ink, double zoom, Size bounds, Action accept, Action cancel, Action? remove = null, TextSegment[]? segments = null)
     {
         this.bounds = bounds; this.zoom = zoom;
+        this.remove = remove; ObjectSelected = remove != null; Focusable = true;
         inset = 1 / zoom; padding = 4 / zoom;
         BorderBrush = new SolidColorBrush(Color.FromRgb(59, 130, 246)); BorderThickness = new Thickness(inset);
         CornerRadius = new CornerRadius(4 / zoom); Padding = new Thickness(padding); Background = Brushes.Transparent;
@@ -86,7 +90,8 @@ internal sealed class InlineTextEditor : Border
         resizeChrome.AppendChild(resizeIcon); resizeGrip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = resizeChrome };
         resizeGrip.DragDelta += (_, e) =>
         {
-            Width = Math.Clamp(Width + e.HorizontalChange / this.zoom, Math.Min(120 / this.zoom, bounds.Width), bounds.Width);
+            double availableWidth = Math.Max(1, bounds.Width - Math.Max(0, Canvas.GetLeft(this)));
+            Width = Math.Clamp(Width + e.HorizontalChange / this.zoom, Math.Min(120 / this.zoom, availableWidth), availableWidth);
             Input.Height = Math.Clamp(Input.Height + e.VerticalChange / this.zoom, Input.FontSize * 1.3, Math.Max(Input.FontSize * 1.3, bounds.Height - 2 * (inset + padding)));
             e.Handled = true;
         };
@@ -131,7 +136,12 @@ internal sealed class InlineTextEditor : Border
         Width = Math.Min(bounds.Width, Math.Max(card.DesiredSize.Width / zoom, fontSize * 12));
         palette = new Popup { Child = card, PlacementTarget = formatHandle, Placement = PlacementMode.Bottom, VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
         formatHandle.Click += (_, _) => SetPaletteOpen(!formattingRequested);
-        Input.GotKeyboardFocus += (_, _) => SetPaletteOpen(false);
+        Input.GotKeyboardFocus += (_, _) => { ObjectSelected = false; SetPaletteOpen(false); };
+        PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            if (remove != null && e.OriginalSource is DependencyObject source && !Input.IsAncestorOf(source))
+            { ObjectSelected = true; Focus(); }
+        };
         Input.TextChanged += (_, _) => { if (!applyingFormat) SetPaletteOpen(false); QueueFitHeight(); };
         Input.Loaded += (_, _) => QueueFitHeight();
         card.PreviewKeyDown += (_, e) =>
@@ -145,8 +155,11 @@ internal sealed class InlineTextEditor : Border
         boldPicker.Checked += (_, _) => ChangeBold(); boldPicker.Unchecked += (_, _) => ChangeBold();
         SetAppearance(fontSize, ink); SetFont("MS Gothic", false);
         if (segments is { Length: > 0 }) LoadText(text, segments);
-        MoveTo(position.X - inset - padding, position.Y - inset - padding);
-        Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } movePopup.IsOpen = true; formatPopup.IsOpen = true; Input.Focus(); Input.CaretPosition = Input.Document.ContentEnd; };
+        double desiredLeft = position.X - inset - padding;
+        double availableAtPosition = bounds.Width - Math.Max(0, desiredLeft);
+        if (availableAtPosition >= Math.Min(120 / zoom, bounds.Width)) Width = Math.Min(Width, availableAtPosition);
+        MoveTo(desiredLeft, position.Y - inset - padding);
+        Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } movePopup.IsOpen = true; formatPopup.IsOpen = true; if (ObjectSelected) Focus(); else { Input.Focus(); Input.CaretPosition = Input.Document.ContentEnd; } };
         Unloaded += (_, _) => { ClosePalette(); if (owner != null) { owner.Deactivated -= HidePalette; owner.Activated -= ShowPalette; } owner = null; };
         LayoutUpdated += (_, _) => RepositionPalette();
     }
@@ -175,8 +188,8 @@ internal sealed class InlineTextEditor : Border
     }
     private void MoveTo(double x, double y)
     {
-        Canvas.SetLeft(this, Math.Clamp(x, -inset - padding, Math.Max(0, bounds.Width - Math.Min(Width, 40))));
-        Canvas.SetTop(this, Math.Clamp(y, -inset - padding, Math.Max(0, bounds.Height - Input.FontSize * 1.3))); RepositionPalette();
+        Canvas.SetLeft(this, Math.Clamp(x, -inset - padding, Math.Max(0, bounds.Width - Width)));
+        Canvas.SetTop(this, Math.Clamp(y, -inset - padding, Math.Max(0, bounds.Height - Input.Height - 2 * (inset + padding)))); RepositionPalette();
     }
     private void ChangeFontFamily()
     {

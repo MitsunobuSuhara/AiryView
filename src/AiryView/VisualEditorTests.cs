@@ -112,6 +112,10 @@ internal static class VisualEditorTests
         Check(Math.Abs(preview.EditorZoomForTest - initialZoom) < .0001, "Ctrl wheel down reverses zoom");
         preview.BeginText(new Point(10, 10));
         Check(preview.ActiveTextEditor != null, "click creates an inline text box");
+        Check(!preview.DeleteSelectedObject(), "Delete while typing does not remove a new text box");
+        var edgeText = new InlineTextEditor(new Point(380, 20), "", 14, Colors.Black, 1,
+            new Size(400, 300), () => { }, () => { });
+        Check(Canvas.GetLeft(edgeText) + edgeText.Width <= 400, "text box resize handle remains inside the page at the right edge");
         Check(!preview.ActiveTextEditor!.CanDeleteForTest, "new text has no delete button before it is committed");
         var pendingText = preview.ActiveTextEditor;
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
@@ -159,7 +163,12 @@ internal static class VisualEditorTests
         Check(editedModel.Frame.Marks[0].Text == "修正", "canceling inline edit preserves committed text");
         preview.BeginText(new Point(12, 12));
         Check(preview.ActiveTextEditor!.CanDeleteForTest, "reselected committed text offers a delete button");
-        preview.ActiveTextEditor.DeleteForTest();
+        Check(preview.ActiveTextEditor.ObjectSelected && preview.DeleteSelectedObject()
+            && editedModel.Frame.Marks.Length == 0 && preview.ActiveTextEditor == null,
+            "Delete removes a selected existing text box");
+        editedModel.Undo();
+        preview.BeginText(new Point(12, 12));
+        preview.ActiveTextEditor!.DeleteForTest();
         Check(editedModel.Frame.Marks.Length == 0 && preview.ActiveTextEditor == null, "delete button removes committed text");
         editedModel.Undo(); Check(editedModel.Frame.Marks.Length == 1 && editedModel.Frame.Marks[0].Text == "修正", "undo restores deleted text");
         preview.BeginShape(new("arrow", new(20, 60), new(80, 60), "", Colors.Red, 3));
@@ -181,6 +190,10 @@ internal static class VisualEditorTests
         var savedArrow = editedModel.Frame.Marks[1];
         preview.BeginShape(savedArrow, 1); preview.ActiveShapeEditor!.SelectFormattingForTest(12, 3); preview.CancelEdits();
         Check(editedModel.Frame.Marks[1] == savedArrow, "canceling palette changes preserves the existing arrow");
+        preview.BeginShape(savedArrow, 1);
+        Check(preview.DeleteSelectedObject() && editedModel.Frame.Marks.Length == 1,
+            "Delete removes a selected arrow");
+        editedModel.Undo();
         preview.BeginShape(savedArrow, 1); preview.ActiveShapeEditor!.DeleteForTest();
         Check(editedModel.Frame.Marks.Length == 1, "arrow popup deletes a committed arrow");
         editedModel.Undo(); Check(editedModel.Frame.Marks.Length == 2 && editedModel.Frame.Marks[1] == savedArrow, "undo restores deleted arrow");
