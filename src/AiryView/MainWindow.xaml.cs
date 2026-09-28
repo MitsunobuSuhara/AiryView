@@ -523,7 +523,7 @@ public partial class MainWindow : Window
         RotationControls.Visibility = state != null || image != null ? Visibility.Visible : Visibility.Collapsed;
         FitWidthButton.Visibility = state != null || image != null ? Visibility.Visible : Visibility.Collapsed;
         PrintButton.Visibility = state != null || textDocument?.Editable == true ? Visibility.Visible : Visibility.Collapsed;
-        ContentGrid.Background = textDocument != null || image != null ? Brushes.White : new SolidColorBrush(Color.FromRgb(188, 195, 204));
+        ContentGrid.Background = textDocument != null || image != null ? Brushes.White : new SolidColorBrush(Color.FromRgb(232, 237, 244));
         MarkdownViewer.Document = textDocument?.IsMarkdown == true && !textDocument.SourceMode ? textDocument.Document : null;
         if (textDocument?.ShowEditor == true && TextEditor.Text != textDocument.LiveText) { opening = true; TextEditor.Text = textDocument.LiveText; opening = false; }
         TextEditor.TextWrapping = textDocument?.Wrap == true ? TextWrapping.Wrap : TextWrapping.NoWrap;

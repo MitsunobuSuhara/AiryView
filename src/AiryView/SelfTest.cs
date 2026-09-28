@@ -686,6 +686,10 @@ public static class SelfTest
         previewScroller.ScrollToTop(); print.UpdateLayout(); PreviewScroll(120);
         Check(sideText.Text.StartsWith("1 /"), "印刷プレビューの先頭から範囲外へ進まない");
         var modeBox = (ComboBox)print.FindName("ModeBox");
+        modeBox.IsDropDownOpen = true;
+        await print.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        Check(modeBox.Template.FindName("PART_Popup", modeBox) is System.Windows.Controls.Primitives.Popup { IsOpen: true, Child: Border }, "丸い選択欄でも印刷方法の候補を開ける");
+        modeBox.IsDropDownOpen = false;
         modeBox.SelectedIndex = 2;
         Check(!printButton.IsEnabled, "設定変更後は古いプレビューで印刷させない");
         await print.RefreshAsync();

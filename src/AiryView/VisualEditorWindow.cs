@@ -90,7 +90,7 @@ internal sealed class VisualEditorWindow : Window
     private int editingIndex = -1;
     private readonly StackPanel controls = new();
     private readonly EditSurface surface = new() { Focusable = true, ClipToBounds = true };
-    private readonly ScrollViewer viewer = new() { Background = new SolidColorBrush(Color.FromRgb(204, 211, 221)), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    private readonly ScrollViewer viewer = new() { Background = new SolidColorBrush(Color.FromRgb(232, 237, 244)), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly ComboBox tool = new() { Width = 142, Margin = new Thickness(4), SelectedIndex = 0, ToolTip = "文字：用紙をクリックして入力\n矢印・線・四角形・円／楕円：ドラッグして配置\nハイライト：選択後に範囲指定またはフリーハンドを選択\n配置した文字・図形はクリックして再編集" };
     private readonly ComboBox highlightMethod = new() { Width = 124, Margin = new Thickness(4), Visibility = Visibility.Collapsed, ToolTip = "ハイライトの方法\n範囲指定：PDFの文字には自動でフィット、画像では四角い範囲\nフリーハンド：描いた軌跡に沿う" };
     private readonly ComboBox color = new() { Width = 80, Margin = new Thickness(4), SelectedIndex = 1 };
@@ -137,8 +137,9 @@ internal sealed class VisualEditorWindow : Window
         Title = isPdf ? "PDFに書き込み — AiryView" : "画像編集 — AiryView";
         Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/icon.ico"));
         Width = 1100; Height = 820; MinWidth = 740; MinHeight = 520; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        FontFamily = new FontFamily("Yu Gothic UI"); FontSize = 14; Background = Brushes.WhiteSmoke;
+        FontFamily = new FontFamily("Yu Gothic UI"); FontSize = 14; Background = new SolidColorBrush(Color.FromRgb(247, 249, 252));
         var root = new DockPanel(); Content = root;
+        controls.Background = new SolidColorBrush(Color.FromRgb(250, 251, 253));
         DockPanel.SetDock(controls, Dock.Top); root.Children.Add(controls);
         DockPanel.SetDock(status, Dock.Bottom); root.Children.Add(status);
         viewer.Content = new Border { Child = surface, Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
