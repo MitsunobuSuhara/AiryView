@@ -5,7 +5,7 @@ namespace AiryView;
 public readonly record struct PdfTextCharacter(char Character, Rect RelativeBox);
 
 // PDFiumは全ドキュメント間で直列化する。描画中の回転・解放との競合も防ぐ。
-public sealed class PdfDocument : IDisposable
+public sealed partial class PdfDocument : IDisposable
 {
     private static readonly object Gate = new();
     private static bool initialized;
@@ -239,7 +239,7 @@ public sealed class PdfDocument : IDisposable
         }
     }
 
-    private static class Native
+    private static partial class Native
     {
         private const string Dll = "pdfium";
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate IntPtr GetPageCallback(IntPtr info, IntPtr doc, int index);

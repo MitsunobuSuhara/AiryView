@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import pkcs12
 root=pathlib.Path('artifacts/feature-tests').resolve();root.mkdir(parents=True,exist_ok=True)
 source=root/'forms.pdf';c=canvas.Canvas(str(source),pagesize=(595,842));c.drawString(50,780,'Searchable document');c.acroForm.textfield(name='name',x=50,y=700,width=240,height=30);c.acroForm.checkbox(name='agree',x=50,y=650);c.bookmarkPage('start');c.addOutlineEntry('First page','start');c.showPage();c.drawString(50,780,'Second searchable page');c.save()
-helper=pathlib.Path('artifacts/helper/airy-pdf-helper/airy-pdf-helper.exe').resolve()
+helper=pathlib.Path('artifacts/helper/airyview-pdf-helper/airyview-pdf-helper.exe').resolve()
 def run(operation,src=source,**kw):
  q=dict(operation=operation,source=str(src),**kw);p=subprocess.run([str(helper)],input=json.dumps(q).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
  result=json.loads(p.stdout);assert result['ok'],result;return result['result']

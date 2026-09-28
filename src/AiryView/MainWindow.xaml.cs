@@ -134,6 +134,8 @@ public partial class MainWindow : Window
     private int textMatchIndex = -1;
     private PageView? selectingPage;
     private int selectionAnchor = -1;
+    private Point pdfPressPoint;
+    private bool pdfDragged;
     private string selectedPdfText = "";
     private readonly List<string> closedPaths = [];
     internal static bool SuppressRecentFilesForTest;
@@ -497,6 +499,10 @@ public partial class MainWindow : Window
         var textDocument = CurrentText;
         var image = CurrentImage;
         displayedState = (object?)image ?? textDocument;
+        VisualEditButton.Visibility = state != null || image != null ? Visibility.Visible : Visibility.Collapsed;
+        VisualEditButton.IsEnabled = image != null || state?.Document.CanEdit == true;
+        VisualEditButton.ToolTip = (image != null ? "画像を編集：回転・切り抜き・サイズ変更" : "PDFに書き込み")
+            + "\n文字：用紙をクリックして入力\n矢印・線・ハイライト：ドラッグして離す\n配置した文字・図形はクリックして再編集";
         displayedEditor = textDocument?.ShowEditor == true;
         changingLayout = true;
         ClearPdfSelection();
@@ -907,23 +913,47 @@ public partial class MainWindow : Window
     private void PdfSelectionStarted(object s, MouseButtonEventArgs e)
     {
         if (Current is not { } state || s is not Canvas { Tag: PageView view }) return;
-        view.Characters ??= state.Document.TextCharacters(view.Page);
-        int hit = PdfCharacterAt(view, e.GetPosition(view.Selection));
+        BeginPdfPointer(view, e.GetPosition(view.Selection)); e.Handled = true;
+    }
+    private void BeginPdfPointer(PageView view, Point point)
+    {
+        if (Current is not { } state) return;
         ClearPdfSelection();
-        if (hit < 0) return;
-        selectingPage = view; selectionAnchor = hit;
-        view.Selection.CaptureMouse(); UpdatePdfSelection(view, hit); e.Handled = true;
+        pdfPressPoint = point; pdfDragged = false; selectingPage = view;
+        view.Characters ??= state.Document.TextCharacters(view.Page);
+        selectionAnchor = PdfCharacterAt(view, point);
+        view.Selection.CaptureMouse();
+        if (selectionAnchor >= 0) UpdatePdfSelection(view, selectionAnchor);
     }
     private void PdfSelectionMoved(object s, MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed || selectingPage == null || s != selectingPage.Selection) return;
-        int hit = PdfCharacterAt(selectingPage, e.GetPosition(selectingPage.Selection));
+        MovePdfPointer(e.GetPosition(selectingPage.Selection));
+    }
+    private void MovePdfPointer(Point point)
+    {
+        if (selectingPage == null) return;
+        pdfDragged |= Math.Abs(point.X - pdfPressPoint.X) >= SystemParameters.MinimumHorizontalDragDistance || Math.Abs(point.Y - pdfPressPoint.Y) >= SystemParameters.MinimumVerticalDragDistance;
+        int hit = PdfCharacterAt(selectingPage, point);
         if (hit >= 0) UpdatePdfSelection(selectingPage, hit);
     }
     private void PdfSelectionEnded(object s, MouseButtonEventArgs e)
     {
-        if (selectingPage != null) selectingPage.Selection.ReleaseMouseCapture();
-        selectingPage = null; selectionAnchor = -1; e.Handled = true;
+        if (selectingPage is { } view) EndPdfPointer(view, e.GetPosition(view.Selection), view.Selection.IsMouseCaptured);
+        e.Handled = true;
+    }
+    private void EndPdfPointer(PageView view, Point point, bool captured)
+    {
+        MovePdfPointer(point);
+        bool click = !pdfDragged && captured;
+        view.Selection.ReleaseMouseCapture(); selectingPage = null; selectionAnchor = -1;
+        if (!click || Current is not { } state || view.Surface.ActualWidth <= 0 || view.Surface.ActualHeight <= 0) return;
+        try
+        {
+            int target = state.Document.InternalLinkPageAt(view.Page, new Point(point.X / view.Surface.ActualWidth, point.Y / view.Surface.ActualHeight));
+            if (target >= 0) { ClearPdfSelection(); GoPage(target); }
+        }
+        catch (Exception ex) { Error(ex); }
     }
     private void UpdatePdfSelection(PageView view, int end)
     {
@@ -945,6 +975,7 @@ public partial class MainWindow : Window
     }
     private void ClearPdfSelection()
     {
+        selectingPage?.Selection.ReleaseMouseCapture();
         foreach (PageView view in pageViews) view.Selection.Children.Clear();
         selectedPdfText = ""; selectingPage = null; selectionAnchor = -1;
     }
@@ -961,6 +992,16 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(selectedPdfText)) return false;
         Clipboard.SetText(selectedPdfText); return Clipboard.GetText() == selectedPdfText;
     }
+    internal void PdfPointerForTest(int page, Point downRelative, params Point[] positions)
+    {
+        var view = pageViews[page];
+        Point Absolute(Point p) => new(p.X * view.Surface.ActualWidth, p.Y * view.Surface.ActualHeight);
+        BeginPdfPointer(view, Absolute(downRelative));
+        foreach (Point point in positions) MovePdfPointer(Absolute(point));
+        // 自動試験の非対話デスクトップではマウスを捕捉できないため、捕捉済みの操作列を渡す。
+        EndPdfPointer(view, Absolute(positions.Length == 0 ? downRelative : positions[^1]), captured: true);
+    }
+    internal void GoPageForTest(int page) => GoPage(page);
 
     internal void ScrollPdfByWheel(int delta)
     {
@@ -970,6 +1011,7 @@ public partial class MainWindow : Window
     }
     private void ViewerWheel(object s, MouseWheelEventArgs e)
     {
+        if (selectingPage != null) pdfDragged = true;
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) ZoomByWheel(e.Delta, e.GetPosition(Viewer));
         else ScrollPdfByWheel(e.Delta);
         e.Handled = true;
@@ -1214,13 +1256,26 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.0.18\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.1.0\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、左右のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\n画像編集：回転・切り抜き・サイズ変更・文字／矢印／線\nPDF書き込み：文字／矢印／線。追加文字は図形として別名保存\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)
     {
         if (Current is not { } state) return;
         new PdfToolsWindow(state.Document, state.Page, GoPage, async path => await OpenPathsAsync([path])) { Owner = this }.ShowDialog();
+    }
+    private void VisualEditClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            VisualEditorWindow? editor = CurrentImage is { } image
+                ? new VisualEditorWindow(image.Path, image.Image, image.Rotation, path => OpenPathsAsync([path]), path => FindOpenTab(path) != null)
+                : Current is { Document.CanEdit: true } state
+                    ? new VisualEditorWindow(state.Document, state.Page, path => OpenPathsAsync([path]), path => FindOpenTab(path) != null)
+                    : null;
+            if (editor != null) { editor.Owner = this; editor.ShowDialog(); }
+        }
+        catch (Exception ex) { Error(ex); }
     }
     private static IEnumerable<System.Windows.Documents.Run> FindRuns(DependencyObject parent)
     {

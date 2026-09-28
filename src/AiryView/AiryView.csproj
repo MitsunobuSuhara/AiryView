@@ -10,13 +10,14 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>AiryView</AssemblyName>
     <ApplicationIcon>../../assets/icons/AiryView.ico</ApplicationIcon>
-    <Version>2.0.18</Version>
+    <Version>2.1.0</Version>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="bblanchon.PDFium.Win32" Version="155.0.8044" />
     <Content Include="../../THIRD-PARTY/**/*" Link="THIRD-PARTY/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../assets/checks/*.pdf" Link="Samples/print-check.pdf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../assets/fonts/**/*" Link="Fonts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../artifacts/helper/airyview-pdf-helper/**/*" Link="Helper/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../assets/icons/AiryView.ico" Link="AiryView.ico" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Svg.Skia" Version="5.2.3" />

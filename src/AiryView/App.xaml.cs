@@ -5,8 +5,11 @@ namespace AiryView;
 
 public partial class App : System.Windows.Application
 {
-    private const string InstanceMutexName = "Local\\AiryView.SingleInstance.v1";
-    private const string InstancePipeName = "AiryView.OpenFiles.v1";
+    // 同じWindowsセッションでも別ユーザーの起動が互いのファイル転送を奪わないようにする。
+    private static readonly string InstanceOwner = System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value
+        ?? throw new InvalidOperationException("Windowsユーザーを識別できませんでした。");
+    private static readonly string InstanceMutexName = "Local\\AiryView.SingleInstance.v2." + InstanceOwner;
+    private static readonly string InstancePipeName = "AiryView.OpenFiles.v2." + InstanceOwner;
     private Mutex? instanceMutex;
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
@@ -18,6 +21,30 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args.Contains("--pdf-link-test"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            try { await PdfLinkTests.RunAsync(e.Args.SkipWhile(x => x != "--pdf-link-test").Skip(1).FirstOrDefault()); Shutdown(0); }
+            catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
+        if (e.Args.Contains("--editor-test") || e.Args.Contains("--image-editor-test"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            try { await VisualEditorTests.RunAsync(e.Args.Contains("--image-editor-test")); Shutdown(0); }
+            catch (Exception ex) { File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
+        if (e.Args.Contains("--launch-benchmark"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            try { await LaunchBenchmark.RunAsync(); Shutdown(0); }
+            catch (Exception ex) { File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
         if (e.Args.Contains("--mixed-paper-test") || e.Args.Contains("--startup-test") || e.Args.Contains("--media-benchmark") || e.Args.Contains("--open-benchmark") || e.Args.Contains("--self-test") || e.Args.Contains("--ui-test"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -115,8 +142,8 @@ public partial class App : System.Windows.Application
         if (handle != IntPtr.Zero) SetForegroundWindow(handle);
         window.Focus();
     }
-    internal static Task StartFileListener(MainWindow window, CancellationToken cancellationToken, string pipeName = InstancePipeName) =>
-        Task.Run(() => ListenForFilesAsync(window, cancellationToken, pipeName));
+    internal static Task StartFileListener(MainWindow window, CancellationToken cancellationToken, string? pipeName = null) =>
+        Task.Run(() => ListenForFilesAsync(window, cancellationToken, pipeName ?? InstancePipeName));
 
     private static async Task ListenForFilesAsync(MainWindow window, CancellationToken cancellationToken, string pipeName)
     {
