@@ -1,5 +1,5 @@
 <Window x:Class="AiryView.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="AiryView 2.1.7" Width="1180" Height="840" MinWidth="860" MinHeight="560" Background="#F7F9FC" FontFamily="Yu Gothic UI" FontSize="14" Icon="Assets/icon.ico"
+ Title="AiryView 2.1.8" Width="1180" Height="840" MinWidth="860" MinHeight="560" Background="#F7F9FC" FontFamily="Yu Gothic UI" FontSize="14" Icon="Assets/icon.ico"
  UseLayoutRounding="True" SnapsToDevicePixels="True" AllowDrop="True" Drop="FilesDropped" PreviewKeyDown="WindowKeyDown" Closing="WindowClosing">
  <DockPanel>
   <StackPanel DockPanel.Dock="Top" Background="#F7F9FC">
@@ -47,7 +47,7 @@
    <Grid x:Name="TextEditorArea" Visibility="Collapsed">
     <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <TextBox x:Name="TextEditor" Grid.Row="0" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" FontFamily="Cascadia Mono, Consolas, Yu Gothic UI" FontSize="15" Padding="28,22" Margin="0" BorderThickness="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextChanged="TextEditorChanged" SelectionChanged="TextEditorSelectionChanged"/>
-    <TextBlock Grid.Row="1" Text="ⓘ 数字の0の点は見た目だけです。検索・コピー・保存では普通の0として扱われます。" FontSize="12" Foreground="#526173" Background="#F7F9FC" Padding="28,6"/>
+    <TextBlock Grid.Row="1" FontSize="12" Foreground="#526173" Background="#F7F9FC" Padding="28,6">ⓘ 点付きの「<Run Text="0" FontFamily="Cascadia Mono, Consolas, Yu Gothic UI" FontSize="15"/>」はフォントの見た目です。文字そのものは普通の数字の0です。</TextBlock>
    </Grid>
    <FlowDocumentScrollViewer x:Name="MarkdownViewer" Visibility="Collapsed" PreviewMouseWheel="MarkdownWheel" Background="White" VerticalScrollBarVisibility="Auto" IsSelectionEnabled="True" MinZoom="10" MaxZoom="800"/>
    <ScrollViewer x:Name="Viewer" Visibility="Collapsed" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseWheel="ViewerWheel" ScrollChanged="ViewerScrolled">
