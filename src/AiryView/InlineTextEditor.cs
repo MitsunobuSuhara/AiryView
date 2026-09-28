@@ -38,7 +38,6 @@ internal sealed class InlineTextEditor : Border
         inset = 1 / zoom; padding = 4 / zoom;
         BorderBrush = new SolidColorBrush(Color.FromRgb(59, 130, 246)); BorderThickness = new Thickness(inset);
         CornerRadius = new CornerRadius(4 / zoom); Padding = new Thickness(padding); Background = Brushes.Transparent;
-        Width = Math.Min(bounds.Width, Math.Max(240 / zoom, fontSize * 12));
         Input = new TextBox { Text = text, AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, MaxLength = 5000,
             FontFamily = new FontFamily("MS Gothic"), BorderThickness = new Thickness(0), Padding = new Thickness(0),
             Background = Brushes.Transparent, MinHeight = fontSize * 1.3,
@@ -83,6 +82,8 @@ internal sealed class InlineTextEditor : Border
             BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
             Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 3, Opacity = .18, Color = Colors.Black } };
         card.SetValue(TextElement.FontFamilyProperty, new FontFamily("Yu Gothic UI")); card.SetValue(TextElement.FontSizeProperty, 12.0);
+        card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Width = Math.Min(bounds.Width, Math.Max(card.DesiredSize.Width / zoom, fontSize * 12));
         palette = new Popup { Child = card, PlacementTarget = this, Placement = PlacementMode.Bottom, VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
         card.PreviewKeyDown += (_, e) =>
         {
