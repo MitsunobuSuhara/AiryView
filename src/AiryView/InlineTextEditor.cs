@@ -10,7 +10,7 @@ namespace AiryView;
 internal sealed class InlineTextEditor : Border
 {
     internal TextBox Input { get; }
-    private readonly double inset, padding;
+    private readonly double inset, padding, headerHeight;
     private readonly Size bounds;
     private double zoom;
     private readonly Popup palette;
@@ -33,24 +33,57 @@ internal sealed class InlineTextEditor : Border
     internal bool PaletteOpenForTest => palette.IsOpen;
     internal bool CanDeleteForTest => deleteButton != null;
     internal void DeleteForTest() => deleteButton?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    internal Point TextPosition => new(Canvas.GetLeft(this) + inset + padding, Canvas.GetTop(this) + inset + padding);
+    internal Point TextPosition => new(Canvas.GetLeft(this) + inset + padding, Canvas.GetTop(this) + inset + padding + headerHeight);
 
     internal InlineTextEditor(Point position, string text, double fontSize, Color ink, double zoom, Size bounds, Action accept, Action cancel, Action? remove = null)
     {
         this.bounds = bounds; this.zoom = zoom;
-        inset = 1 / zoom; padding = 4 / zoom;
+        inset = 1 / zoom; padding = 4 / zoom; headerHeight = 28 / zoom;
         BorderBrush = new SolidColorBrush(Color.FromRgb(59, 130, 246)); BorderThickness = new Thickness(inset);
         CornerRadius = new CornerRadius(4 / zoom); Padding = new Thickness(padding); Background = Brushes.Transparent;
         Input = new TextBox { Text = text, AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, MaxLength = 5000,
-            FontFamily = new FontFamily("MS Gothic"), BorderThickness = new Thickness(0), Padding = new Thickness(0, 0, 70 / zoom, 0),
+            FontFamily = new FontFamily("MS Gothic"), BorderThickness = new Thickness(0), Padding = new Thickness(0),
             Background = Brushes.Transparent, MinHeight = fontSize * 1.3,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             MaxHeight = Math.Max(fontSize * 2, bounds.Height - 2 * (inset + padding)) };
         formatHandle = new Button { Content = "書式 ▾", Width = 62 / zoom, Height = 25 / zoom, FontSize = 11 / zoom,
-            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, MinHeight = 0,
             Padding = new Thickness(4 / zoom, 0, 4 / zoom, 0), Margin = new Thickness(2 / zoom),
             ToolTip = "文字のフォント・大きさ・色を変更" };
-        var inputArea = new Grid(); inputArea.Children.Add(Input); inputArea.Children.Add(formatHandle); Child = inputArea;
+        var grip = new Thumb { Cursor = Cursors.SizeAll, ToolTip = "ドラッグして文字を移動", Width = 30 / zoom, Height = 25 / zoom, Margin = new Thickness(2 / zoom) };
+        var gripChrome = new FrameworkElementFactory(typeof(Border));
+        gripChrome.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(241, 245, 249)));
+        gripChrome.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(203, 213, 225)));
+        gripChrome.SetValue(Border.BorderThicknessProperty, new Thickness(1 / zoom));
+        gripChrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(4 / zoom));
+        var gripText = new FrameworkElementFactory(typeof(TextBlock));
+        gripText.SetValue(TextBlock.TextProperty, "✥"); gripText.SetValue(TextBlock.FontSizeProperty, 19 / zoom);
+        gripText.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(71, 85, 105)));
+        gripText.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        gripText.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+        gripChrome.AppendChild(gripText); grip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = gripChrome };
+        grip.DragDelta += (_, e) => { MoveTo(Canvas.GetLeft(this) + e.HorizontalChange / this.zoom, Canvas.GetTop(this) + e.VerticalChange / this.zoom); e.Handled = true; };
+        var resizeGrip = new Thumb { Cursor = Cursors.SizeNWSE, ToolTip = "ドラッグして入力欄の幅と高さを変更", Width = 22 / zoom, Height = 22 / zoom, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+        var resizeChrome = new FrameworkElementFactory(typeof(Border));
+        resizeChrome.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)));
+        resizeChrome.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(59, 130, 246)));
+        resizeChrome.SetValue(Border.BorderThicknessProperty, new Thickness(1 / zoom));
+        resizeChrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(3 / zoom));
+        var resizeIcon = new FrameworkElementFactory(typeof(TextBlock));
+        resizeIcon.SetValue(TextBlock.TextProperty, "◢"); resizeIcon.SetValue(TextBlock.FontSizeProperty, 14 / zoom);
+        resizeIcon.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(59, 130, 246)));
+        resizeIcon.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        resizeIcon.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+        resizeChrome.AppendChild(resizeIcon); resizeGrip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = resizeChrome };
+        resizeGrip.DragDelta += (_, e) =>
+        {
+            Width = Math.Clamp(Width + e.HorizontalChange / this.zoom, Math.Min(120 / this.zoom, bounds.Width), bounds.Width);
+            Input.MinHeight = Math.Clamp(Input.MinHeight + e.VerticalChange / this.zoom, Input.FontSize * 1.3, Math.Max(Input.FontSize * 1.3, bounds.Height - headerHeight - 2 * (inset + padding)));
+            e.Handled = true;
+        };
+        var inputArea = new Grid(); inputArea.RowDefinitions.Add(new RowDefinition { Height = new GridLength(headerHeight) }); inputArea.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var inputHeader = new StackPanel { Orientation = Orientation.Horizontal }; inputHeader.Children.Add(grip); inputHeader.Children.Add(formatHandle);
+        inputArea.Children.Add(inputHeader); Grid.SetRow(Input, 1); inputArea.Children.Add(Input); Grid.SetRow(resizeGrip, 1); inputArea.Children.Add(resizeGrip); Child = inputArea;
 
         var root = new StackPanel();
         var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 9) }; root.Children.Add(heading);
@@ -64,13 +97,6 @@ internal sealed class InlineTextEditor : Border
             deleteButton.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
             deleteButton.Click += (_, _) => remove(); actions.Children.Add(deleteButton);
         }
-        var grip = new Thumb { Cursor = Cursors.SizeAll, ToolTip = "ドラッグして文字を移動", Height = 28 };
-        var gripText = new FrameworkElementFactory(typeof(TextBlock));
-        gripText.SetValue(TextBlock.TextProperty, "⠿  テキストを移動"); gripText.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(71, 85, 105)));
-        gripText.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center); gripText.SetValue(TextBlock.FontSizeProperty, 12.0);
-        grip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = gripText }; heading.Children.Add(grip);
-        grip.DragDelta += (_, e) => { MoveTo(Canvas.GetLeft(this) + e.HorizontalChange / this.zoom, Canvas.GetTop(this) + e.VerticalChange / this.zoom); e.Handled = true; };
-
         var formats = new StackPanel { Orientation = Orientation.Horizontal }; root.Children.Add(formats);
         fontPicker = new ComboBox { ItemsSource = EditorFonts.Choices, SelectedIndex = 0, Width = 190, Height = 30, Margin = new Thickness(0, 0, 7, 0), ToolTip = "フォント" };
         sizePicker = new TextBox { Width = 54, Height = 30, Padding = new Thickness(5, 2, 5, 2), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "文字サイズ", Margin = new Thickness(0, 0, 7, 0) };
@@ -104,7 +130,7 @@ internal sealed class InlineTextEditor : Border
         card.PreviewMouseWheel += (_, e) => { if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) { ZoomRequested?.Invoke(e.Delta); e.Handled = true; } };
         fontPicker.SelectionChanged += (_, _) => ChangeFormatting(); sizePicker.TextChanged += (_, _) => ChangeFormatting();
         boldPicker.Checked += (_, _) => ChangeFormatting(); boldPicker.Unchecked += (_, _) => ChangeFormatting();
-        SetAppearance(fontSize, ink); SetFont("MS Gothic", false); MoveTo(position.X - inset - padding, position.Y - inset - padding);
+        SetAppearance(fontSize, ink); SetFont("MS Gothic", false); MoveTo(position.X - inset - padding, position.Y - inset - padding - headerHeight);
         Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } Input.Focus(); Input.CaretIndex = Input.Text.Length; };
         Unloaded += (_, _) => { ClosePalette(); if (owner != null) { owner.Deactivated -= HidePalette; owner.Activated -= ShowPalette; } owner = null; };
         LayoutUpdated += (_, _) => RepositionPalette();
@@ -133,7 +159,7 @@ internal sealed class InlineTextEditor : Border
     private void MoveTo(double x, double y)
     {
         Canvas.SetLeft(this, Math.Clamp(x, -inset - padding, Math.Max(0, bounds.Width - Math.Min(Width, 40))));
-        Canvas.SetTop(this, Math.Clamp(y, -inset - padding, Math.Max(0, bounds.Height - Input.FontSize * 1.3))); RepositionPalette();
+        Canvas.SetTop(this, Math.Clamp(y, -inset - padding - headerHeight, Math.Max(0, bounds.Height - Input.FontSize * 1.3 - headerHeight))); RepositionPalette();
     }
     private void ChangeFormatting()
     {

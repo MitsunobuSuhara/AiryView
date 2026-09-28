@@ -12,7 +12,7 @@ internal sealed class ToolIconConverter : IValueConverter
 {
     internal static Geometry For(string name) => name switch
     {
-        "文字" => Geometry.Parse("M 2,4 L 18,4 M 10,4 L 10,17"),
+        "文字" => Geometry.Parse("M 2,4 L 19,4 M 10,4 L 10,17"),
         "矢印" => Geometry.Parse("M 2,17 L 17,3 M 9,3 L 17,3 17,11"),
         "線" => Geometry.Parse("M 2,17 L 18,3"),
         "四角形" => Geometry.Parse("M 3,4 L 17,4 17,16 3,16 Z"),
@@ -269,7 +269,7 @@ internal sealed class VisualEditorWindow : Window
         textEditor.SaveRequested += async () => { try { await SaveAsync(); } catch (Exception ex) { ShowError(ex); } };
         textEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = editingIndex; surface.Children.Add(textEditor); surface.InvalidateVisual();
-        status.Text = "Enterで改行。入力欄右上の「書式」で書体・サイズ・色を変更できます。文字はドラッグで移動し、確定済みの文字は選び直して「削除」できます。Ctrl+Enterで確定、Escで取消。";
+        status.Text = "Enterで改行。入力欄左上の四方向アイコンで移動、右下のつまみで大きさを調整。「書式」で書体・サイズ・色を変更できます。確定済みの文字は選び直して「削除」できます。Ctrl+Enterで確定、Escで取消。";
     }
     private void SyncInlineFormatting()
     {
