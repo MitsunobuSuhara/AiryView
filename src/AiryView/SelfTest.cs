@@ -440,6 +440,10 @@ public static class SelfTest
         CreateFixture(fixture, 5);
         var window = new MainWindow(); window.Show();
         window.UpdateLayout();
+        var tooltip = new ToolTip { Content = "操作の説明" };
+        tooltip.Style = (Style)System.Windows.Application.Current.FindResource(typeof(ToolTip));
+        tooltip.ApplyTemplate();
+        Check(System.Windows.Media.VisualTreeHelper.GetChild(tooltip, 0) is Border { CornerRadius: { TopLeft: 8 } }, "カーソルの説明を角丸の共通デザインにする");
         Check(window.TabCountForTest == 0 && ((FrameworkElement)window.FindName("Welcome")).IsVisible && !((FrameworkElement)window.FindName("TextEditorArea")).IsVisible, "単体起動の初期画面はメモを自動作成せず案内を表示");
         Check(!((FrameworkElement)window.FindName("PageControls")).IsVisible && !((FrameworkElement)window.FindName("PrintButton")).IsVisible, "初期表示にPDF用操作の一瞬の表示を挟まない");
         Capture(window, "artifacts/welcome-window.png");
@@ -552,6 +556,9 @@ public static class SelfTest
         double imageZoom = window.ActiveZoomForTest; window.ZoomByWheel(120); window.UpdateLayout();
         Check(window.ActiveZoomForTest > imageZoom && ((Image)window.FindName("ReaderImage")).Width > 0, "画像をCtrlホイール相当で拡大");
         Check(((FrameworkElement)window.FindName("RotationControls")).Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("FitWidthButton")).Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("ResetRotationButton")).Visibility == Visibility.Visible, "画像の回転・リセット・画面内フィットを表示");
+        var resetRotation = (Button)window.FindName("ResetRotationButton");
+        var rotateLeft = FindButtons((DependencyObject)window.FindName("RotationControls")).First(b => b.ToolTip?.ToString()?.StartsWith("左に90度回転") == true);
+        Check(Near(resetRotation.ActualHeight, rotateLeft.ActualHeight, 1), "回転を元に戻すボタンの高さを他の回転ボタンと揃える");
         int tabsBeforeClose = window.TabCountForTest;
         window.CloseCurrentTabForTest(); window.UpdateLayout();
         Check(window.TabCountForTest == tabsBeforeClose - 1, "保存済みタブを閉じて復元履歴へ追加");
@@ -574,6 +581,9 @@ public static class SelfTest
         Check(pageTotal >= 2, "連続表示の検証対象が複数ページ");
         await window.OpenPathsAsync([uiPath]);
         window.UpdateLayout();
+        var pageButtons = FindButtons((DependencyObject)window.FindName("PageControls")).ToArray();
+        var openButton = FindButtons((DependencyObject)window.FindName("DocumentToolbar")).First(b => b.ToolTip?.ToString()?.StartsWith("開く / Open") == true);
+        Check(pageButtons.Length == 2 && pageButtons.All(b => Near(b.ActualHeight, openButton.ActualHeight, 1)), $"ページ送りボタンの高さを主操作ボタンと揃える ({string.Join(",", pageButtons.Select(b => b.ActualHeight))} vs {openButton.ActualHeight})");
         Check(selectionBadge.Visibility == Visibility.Visible && selectionInfo.Text.Contains("縦 / Portrait") && selectionInfo.Text.Contains("原寸 / Actual size") && selectionInfo.Text.Contains("100%"), "PDFの原本サイズ・印刷モード・倍率を表示");
         int pdfTabCount = window.TabCountForTest;
         await window.OpenPathsAsync([uiPath]); window.UpdateLayout();

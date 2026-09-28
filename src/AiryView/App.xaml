@@ -6,6 +6,26 @@
     <SolidColorBrush x:Key="AiryStroke" Color="#D7E0EA"/>
     <SolidColorBrush x:Key="AiryAccent" Color="#4779BD"/>
 
+    <Style TargetType="ToolTip">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="Foreground" Value="{StaticResource AiryInk}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AiryStroke}"/>
+      <Setter Property="Padding" Value="10,7"/>
+      <Setter Property="FontFamily" Value="Yu Gothic UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="MaxWidth" Value="340"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToolTip">
+            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+              <Border.Effect><DropShadowEffect Color="#243244" BlurRadius="12" ShadowDepth="3" Opacity="0.16"/></Border.Effect>
+              <ContentPresenter ContentSource="Content" TextElement.Foreground="{TemplateBinding Foreground}" TextElement.FontFamily="{TemplateBinding FontFamily}" TextElement.FontSize="{TemplateBinding FontSize}"/>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <Style TargetType="Window">
       <Setter Property="Background" Value="{StaticResource AirySurface}"/>
       <Setter Property="Foreground" Value="{StaticResource AiryInk}"/>
