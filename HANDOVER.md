@@ -2,6 +2,8 @@
 
 更新日: 2026-09-28
 
+最新作業：2.1.2のユーザー画面で回転ボタンの枠が他より短いと再指摘。提示画像の下枠は通常ボタン約94px、回転ボタン約83px。原因は外側のWrapPanel内に入れ子のWrapPanelを置き、内側ボタンが行の高さに伸びなかったこと。回転3ボタンの入れ子をGridへ変更し、画像・PDFの両UI自動確認で通常の「開く」ボタンとのActualHeight差1px以下を確認。回転リセットは丸い矢印と「0°」の組み合わせに変更。2.1.3をProgram Filesへ導入、インストーラー終了0、ビルド／導入／ZIP内DLL SHA256一致 `BD52CCF085B37A47BC8B525FDC466BE01929F909BEBBCB4D7BC3D6B7689F12CB`。導入版UI確認終了0。GitHub Release v2.1.3はLatest、ZIP `AiryView-2.1.3-20260928-152052.zip` は215071812 bytes、SHA256 `F1DF1EE29399F17205E2C63BAD1A1FF5719F0332C7082272D2B6A0D95B295F4A` でGitHub側digestと一致。公開先: https://github.com/MitsunobuSuhara/AiryView/releases/tag/v2.1.3 。無関係な `scripts/create-airyview-story.py` は変更・commit対象外。
+
 最新作業：利用者の2.1.1画面では、回転ボタンの枠ではなくマーク自体が他より上にあった。提示画像の濃色画素の縦範囲は鉛筆57–78px、ページ矢印56–76pxに対して左右回転51–71px、リセット50–73px。左右回転を5px、リセットを4px下へ描画し、UIテスト画像で鉛筆22–39pxに対し左右回転22–39px、リセット21–39pxへ揃えた。2.1.2をProgram Filesへ導入、インストーラー終了0、ビルド／導入／配布ZIP内のDLL SHA256一致 `8186B7966282780BB5235588DDBEDA8ED9CC5B068D0C1E3D4BC1492275A2226D`。導入版のUI自動確認は終了0。GitHub Release v2.1.2はLatestで、ZIP `AiryView-2.1.2-20260928-151144.zip` のサイズ215071157 bytes、SHA256 `00E83CD881A4FA5CC5103160282DA09590B037ED200FD04EDAEFAC46FACEE7CC` がGitHub側のdigestと一致。公開先: https://github.com/MitsunobuSuhara/AiryView/releases/tag/v2.1.2 。無関係な `scripts/create-airyview-story.py` は変更・commit対象外。
 
 最新作業：表示・実行ファイル・Windowsアプリ登録の版を2.1.1へ更新。ページ送りの矢印を20px高のベクターにし、操作列に合わせて高さを揃えた。回転を元に戻すアイコンも24×20pxへ拡大。カーソル説明を共通の角丸・薄い影付き表示に変更。UI自動確認でページ送り・回転ボタンの実寸とツールチップの形を確認し、編集・ダイアログ確認も成功。.NET同梱版をProgram Filesへ導入し、インストーラー終了0、DLL SHA256一致 `14E7E899EEEBFCBA4242EF9656291719CF4D5D5C2AE16AE98D04B5C7A82A3C49`。導入版のUI・編集・ダイアログ確認も終了0。実操作での見た目は利用者の確認待ち。
