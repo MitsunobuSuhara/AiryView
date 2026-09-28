@@ -14,14 +14,17 @@ internal sealed class InlineTextEditor : Border
     private readonly Size bounds;
     private double zoom;
     private readonly Popup palette;
+    private readonly Button formatHandle;
     private readonly ComboBox fontPicker;
     private readonly TextBox sizePicker;
     private readonly ToggleButton boldPicker;
     private readonly Button colorPicker;
     private readonly Button? deleteButton;
     private bool syncing;
+    private bool formattingRequested;
     private Window? owner;
     private Point lastScreenPoint;
+    private Size lastEditorSize;
     internal event Action? AppearanceChanged;
     internal event Action? SaveRequested;
     internal event Action<int>? ZoomRequested;
@@ -39,11 +42,15 @@ internal sealed class InlineTextEditor : Border
         BorderBrush = new SolidColorBrush(Color.FromRgb(59, 130, 246)); BorderThickness = new Thickness(inset);
         CornerRadius = new CornerRadius(4 / zoom); Padding = new Thickness(padding); Background = Brushes.Transparent;
         Input = new TextBox { Text = text, AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, MaxLength = 5000,
-            FontFamily = new FontFamily("MS Gothic"), BorderThickness = new Thickness(0), Padding = new Thickness(0),
+            FontFamily = new FontFamily("MS Gothic"), BorderThickness = new Thickness(0), Padding = new Thickness(0, 0, 70 / zoom, 0),
             Background = Brushes.Transparent, MinHeight = fontSize * 1.3,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             MaxHeight = Math.Max(fontSize * 2, bounds.Height - 2 * (inset + padding)) };
-        Child = Input;
+        formatHandle = new Button { Content = "書式 ▾", Width = 62 / zoom, Height = 25 / zoom, FontSize = 11 / zoom,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Padding = new Thickness(4 / zoom, 0, 4 / zoom, 0), Margin = new Thickness(2 / zoom),
+            ToolTip = "文字のフォント・大きさ・色を変更" };
+        var inputArea = new Grid(); inputArea.Children.Add(Input); inputArea.Children.Add(formatHandle); Child = inputArea;
 
         var root = new StackPanel();
         var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 9) }; root.Children.Add(heading);
@@ -85,6 +92,9 @@ internal sealed class InlineTextEditor : Border
         card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Width = Math.Min(bounds.Width, Math.Max(card.DesiredSize.Width / zoom, fontSize * 12));
         palette = new Popup { Child = card, PlacementTarget = this, Placement = PlacementMode.Bottom, VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
+        formatHandle.Click += (_, _) => SetPaletteOpen(!formattingRequested);
+        Input.GotKeyboardFocus += (_, _) => SetPaletteOpen(false);
+        Input.TextChanged += (_, _) => SetPaletteOpen(false);
         card.PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) { cancel(); e.Handled = true; }
@@ -95,21 +105,30 @@ internal sealed class InlineTextEditor : Border
         fontPicker.SelectionChanged += (_, _) => ChangeFormatting(); sizePicker.TextChanged += (_, _) => ChangeFormatting();
         boldPicker.Checked += (_, _) => ChangeFormatting(); boldPicker.Unchecked += (_, _) => ChangeFormatting();
         SetAppearance(fontSize, ink); SetFont("MS Gothic", false); MoveTo(position.X - inset - padding, position.Y - inset - padding);
-        Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } palette.IsOpen = true; Input.Focus(); Input.CaretIndex = Input.Text.Length; };
+        Loaded += (_, _) => { owner = Window.GetWindow(this); if (owner != null) { owner.Deactivated += HidePalette; owner.Activated += ShowPalette; } Input.Focus(); Input.CaretIndex = Input.Text.Length; };
         Unloaded += (_, _) => { ClosePalette(); if (owner != null) { owner.Deactivated -= HidePalette; owner.Activated -= ShowPalette; } owner = null; };
         LayoutUpdated += (_, _) => RepositionPalette();
     }
     private static Button ActionButton(string label, string tip) => new() { Content = label, ToolTip = tip, Padding = new Thickness(9, 4, 9, 4), Margin = new Thickness(3, 0, 0, 0), MinHeight = 28, FontSize = 12, Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)) };
+    private void SetPaletteOpen(bool open)
+    {
+        formattingRequested = open; palette.IsOpen = open;
+        formatHandle.Background = open ? new SolidColorBrush(Color.FromRgb(219, 234, 254)) : Brushes.White;
+        if (open) RepositionPalette();
+    }
+    internal void OpenFormattingForTest() => SetPaletteOpen(true);
     private void HidePalette(object? sender, EventArgs e) => palette.IsOpen = false;
-    private void ShowPalette(object? sender, EventArgs e) { if (IsLoaded) palette.IsOpen = true; }
-    internal void ClosePalette() { palette.IsOpen = false; if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
+    private void ShowPalette(object? sender, EventArgs e) { if (IsLoaded && formattingRequested) palette.IsOpen = true; }
+    internal void ClosePalette() { SetPaletteOpen(false); if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
     internal void UpdateZoom(double value) { zoom = value; RepositionPalette(); }
     private void RepositionPalette()
     {
         if (!IsLoaded || !palette.IsOpen) return;
         Point now = PointToScreen(new Point());
-        if ((now - lastScreenPoint).Length < .1) return;
-        lastScreenPoint = now; palette.HorizontalOffset += .01; palette.HorizontalOffset -= .01;
+        Size size = new(ActualWidth, ActualHeight);
+        if ((now - lastScreenPoint).Length < .1 && Math.Abs(size.Width - lastEditorSize.Width) < .1 && Math.Abs(size.Height - lastEditorSize.Height) < .1) return;
+        lastScreenPoint = now; lastEditorSize = size;
+        palette.HorizontalOffset += .01; palette.HorizontalOffset -= .01;
     }
     private void MoveTo(double x, double y)
     {

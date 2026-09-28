@@ -115,13 +115,16 @@ internal static class VisualEditorTests
         Check(!preview.ActiveTextEditor!.CanDeleteForTest, "new text has no delete button before it is committed");
         var pendingText = preview.ActiveTextEditor;
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        Check(pendingText!.Ink == Colors.Black && pendingText.PaletteOpenForTest, "text starts black with a nearby formatting palette");
+        Check(pendingText!.Ink == Colors.Black && !pendingText.PaletteOpenForTest, "text formatting stays hidden while typing");
+        pendingText.OpenFormattingForTest();
+        Check(pendingText.PaletteOpenForTest, "text formatting opens from its corner button");
         pendingText.SelectFormattingForTest("shippori", 18, true);
         Check(pendingText.Mark is { FontId: "shippori", Size: 18, Bold: true }, "popup changes font size and bold without using the top toolbar");
         pendingText.SelectColorForTest(1);
         Check(pendingText.Ink == Colors.Red && pendingText.Mark is { FontId: "shippori", Size: 18, Bold: true }, "popup color selection preserves other formatting");
         pendingText.SelectColorForTest(0);
         pendingText!.Input.Text = "入力中";
+        Check(!pendingText.PaletteOpenForTest, "typing hides the formatting palette");
         preview.HandleEditorWheel(120, true, new Point(100, 100));
         Check(ReferenceEquals(preview.ActiveTextEditor, pendingText) && pendingText.Input.Text == "入力中" && preview.CurrentModelForTest!.Frame.Marks.Length == 0, "wheel zoom preserves live text input without committing it");
         preview.ActiveTextEditor!.Input.Text = "日本語\n二行目"; preview.ActiveTextEditor.SetFont("shippori", true); preview.CommitEdits();

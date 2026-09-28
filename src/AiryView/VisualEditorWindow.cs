@@ -12,7 +12,7 @@ internal sealed class ToolIconConverter : IValueConverter
 {
     internal static Geometry For(string name) => name switch
     {
-        "文字" => Geometry.Parse("M 2,3 L 18,3 M 10,3 L 10,17 M 6,17 L 14,17"),
+        "文字" => Geometry.Parse("M 2,4 L 18,4 M 10,4 L 10,17"),
         "矢印" => Geometry.Parse("M 2,17 L 17,3 M 9,3 L 17,3 17,11"),
         "線" => Geometry.Parse("M 2,17 L 18,3"),
         "四角形" => Geometry.Parse("M 3,4 L 17,4 17,16 3,16 Z"),
@@ -110,9 +110,9 @@ internal sealed class VisualEditorWindow : Window
     {
         var row = new FrameworkElementFactory(typeof(DockPanel)); row.SetValue(FrameworkElement.WidthProperty, width);
         var icon = new FrameworkElementFactory(typeof(ShapePath));
-        icon.SetValue(DockPanel.DockProperty, Dock.Right); icon.SetValue(FrameworkElement.WidthProperty, 18.0); icon.SetValue(FrameworkElement.HeightProperty, 18.0);
-        icon.SetValue(FrameworkElement.MarginProperty, new Thickness(8, 0, 0, 0)); icon.SetValue(ShapePath.StrokeProperty, Brushes.SlateGray);
-        icon.SetValue(ShapePath.StrokeThicknessProperty, 1.7); icon.SetValue(ShapePath.StretchProperty, Stretch.Uniform);
+        icon.SetValue(DockPanel.DockProperty, Dock.Right); icon.SetValue(FrameworkElement.WidthProperty, 20.0); icon.SetValue(FrameworkElement.HeightProperty, 20.0);
+        icon.SetValue(FrameworkElement.MarginProperty, new Thickness(5, 0, 0, 0)); icon.SetValue(ShapePath.StrokeProperty, Brushes.SlateGray);
+        icon.SetValue(ShapePath.StrokeThicknessProperty, 1.7); icon.SetValue(ShapePath.StretchProperty, Stretch.None);
         icon.SetBinding(ShapePath.DataProperty, new Binding { Converter = new ToolIconConverter() }); row.AppendChild(icon);
         var label = new FrameworkElementFactory(typeof(TextBlock)); label.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
         label.SetBinding(TextBlock.TextProperty, new Binding()); row.AppendChild(label);
@@ -269,7 +269,7 @@ internal sealed class VisualEditorWindow : Window
         textEditor.SaveRequested += async () => { try { await SaveAsync(); } catch (Exception ex) { ShowError(ex); } };
         textEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = editingIndex; surface.Children.Add(textEditor); surface.InvalidateVisual();
-        status.Text = "Enterで改行。近くのパレットで書体・サイズ・色を変更し、文字を移動。確定済みの文字は選び直して「削除」できます。Ctrl+Enterで確定、Escで取消。";
+        status.Text = "Enterで改行。入力欄右上の「書式」で書体・サイズ・色を変更できます。文字はドラッグで移動し、確定済みの文字は選び直して「削除」できます。Ctrl+Enterで確定、Escで取消。";
     }
     private void SyncInlineFormatting()
     {
