@@ -10,9 +10,20 @@ internal sealed class InlineShapeEditor : Canvas
 {
     internal EditMark Mark { get; private set; }
     private readonly Thumb start, end, move;
+    private readonly ArrowLayer? arrowPreview;
+    private sealed class ArrowLayer(InlineShapeEditor editor) : FrameworkElement
+    {
+        protected override void OnRender(DrawingContext context)
+        {
+            // 太い軸で移動つまみを覆わず、先端だけは重なった丸より手前へ出す。
+            context.PushClip(new EllipseGeometry(editor.Mark.End, 4 * editor.unit, 4 * editor.unit));
+            EditDrawing.DrawMark(context, editor.Mark); context.Pop();
+        }
+    }
     private readonly Popup palette;
     private readonly TextBox sizePicker;
     private readonly Button colorPicker;
+    private readonly Border colorSwatch;
     private Button deleteButton = null!;
     private readonly Action remove;
     private bool syncing;
@@ -34,14 +45,24 @@ internal sealed class InlineShapeEditor : Canvas
     }
     internal void DeleteForTest() => deleteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     internal void DeleteSelected() => remove();
-    private readonly double unit;
+    private double unit;
     internal InlineShapeEditor(EditMark mark, double zoom, Size bounds, Action accept, Action cancel, Action remove, string sizeUnit = "pt")
     {
         Mark = mark; Width = bounds.Width; Height = bounds.Height; unit = 1 / zoom; this.remove = remove;
         bool highlight = mark.Kind.StartsWith("highlight", StringComparison.Ordinal);
         bool area = highlight && mark.Kind != "highlight-freehand";
         bool figure = mark.Kind is "rectangle" or "ellipse";
-        start = Handle(highlight || figure ? "角をドラッグして大きさを変更" : "始点をドラッグ", Cursors.Cross); end = Handle(highlight || figure ? "反対の角をドラッグして大きさを変更" : "終点をドラッグ", Cursors.Cross); move = Handle("図形を移動", Cursors.SizeAll);
+        bool arrow = mark.Kind == "arrow";
+        start = Handle(arrow ? "根元（矢じりのない端）をドラッグ" : highlight || figure ? "角をドラッグして大きさを変更" : "始点をドラッグ", Cursors.Cross);
+        end = Handle(arrow ? "矢じり（先端）をドラッグ" : highlight || figure ? "反対の角をドラッグして大きさを変更" : "終点をドラッグ", Cursors.Cross);
+        move = Handle(arrow ? "矢印全体を移動" : "図形を移動", Cursors.SizeAll);
+        if (arrow)
+        {
+            // つまみが重なっても矢じりを隠さず、操作は下のThumbへ通す。
+            arrowPreview = new ArrowLayer(this) { Width = bounds.Width, Height = bounds.Height, IsHitTestVisible = false };
+            SetZIndex(arrowPreview, 1); Children.Add(arrowPreview);
+        }
+        UpdateHandleSizes();
         start.DragDelta += (_, e) => { MoveEndpoint(true, new Vector(e.HorizontalChange, e.VerticalChange)); e.Handled = true; };
         end.DragDelta += (_, e) => { MoveEndpoint(false, new Vector(e.HorizontalChange, e.VerticalChange)); e.Handled = true; };
         move.DragDelta += (_, e) => { MoveBy(new Vector(e.HorizontalChange, e.VerticalChange)); e.Handled = true; };
@@ -56,13 +77,18 @@ internal sealed class InlineShapeEditor : Canvas
             button.Click += (_, e) => { e.Handled = true; action(); }; commands.Children.Add(button);
         }
         root.Children.Add(commands);
+        if (arrow) root.Children.Add(new TextBlock { Text = "○ 根元  ──▶  矢じり\n端の丸で長さ・向き、中央の丸で移動", FontSize = 12,
+            Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 9) });
         var formats = new StackPanel { Orientation = Orientation.Horizontal };
         formats.Children.Add(new TextBlock { Text = "太さ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });
         sizePicker = new TextBox { Width = 54, Height = 30, Padding = new Thickness(5, 2, 5, 2), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "線の太さ", Margin = new Thickness(0, 0, 7, 0) };
         formats.Children.Add(FontSizeControls.Wrap(sizePicker, stroke: true));
         formats.Children.Add(new TextBlock { Text = sizeUnit, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) });
         if (area) { formats.Children.Clear(); formats.Children.Add(new TextBlock { Text = "角で範囲・中央で移動", Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center }); }
-        colorPicker = new Button { Content = "● 色", ToolTip = highlight ? "ハイライトの色" : "矢印・線の色", MinWidth = 60, Height = 30, Background = Brushes.White, BorderBrush = Brushes.LightGray };
+        colorSwatch = new Border { Width = 18, Height = 18, Background = new SolidColorBrush(mark.Color),
+            BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2) };
+        colorPicker = new Button { Content = colorSwatch, ToolTip = highlight ? "ハイライトの色" : "矢印・線の色",
+            Width = 46, Height = 34, Background = Brushes.White, BorderBrush = Brushes.LightGray };
         formats.Children.Add(colorPicker); root.Children.Add(formats);
         var colors = new ContextMenu();
         var choices = highlight
@@ -102,7 +128,8 @@ internal sealed class InlineShapeEditor : Canvas
     internal void ClosePalette() { palette.IsOpen = false; if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
     private void RepositionPalette()
     {
-        if (!IsLoaded || !palette.IsOpen) return;
+        // 画面の切替中はUnloaded前でも表示先が外れるため、座標変換できない。
+        if (!IsLoaded || !palette.IsOpen || PresentationSource.FromVisual(move) == null) return;
         Point now = move.PointToScreen(new Point());
         if ((now - lastScreenPoint).Length < .1) return;
         lastScreenPoint = now; palette.HorizontalOffset += .01; palette.HorizontalOffset -= .01;
@@ -117,6 +144,22 @@ internal sealed class InlineShapeEditor : Canvas
         var thumb = new Thumb { Width = 18 * unit, Height = 18 * unit, Background = Brushes.LightBlue, BorderBrush = Brushes.DodgerBlue, BorderThickness = new Thickness(unit), Cursor = cursor, ToolTip = tip };
         Children.Add(thumb); return thumb;
     }
+    private void UpdateHandleSizes()
+    {
+        foreach (Thumb thumb in new[] { start, end, move })
+        {
+            thumb.Width = thumb.Height = (Mark.Kind == "arrow" ? ReferenceEquals(thumb, end) ? 20 : 14 : 18) * unit;
+            thumb.BorderThickness = new Thickness(unit);
+            if (Mark.Kind != "arrow") continue;
+            var ring = new FrameworkElementFactory(typeof(System.Windows.Shapes.Ellipse));
+            ring.SetValue(System.Windows.Shapes.Shape.FillProperty, Brushes.Transparent);
+            ring.SetValue(System.Windows.Shapes.Shape.StrokeProperty, Brushes.DodgerBlue);
+            ring.SetValue(System.Windows.Shapes.Shape.StrokeThicknessProperty, 1.2 * unit);
+            thumb.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = ring };
+        }
+    }
+    internal void UpdateZoom(double zoom) { unit = 1 / zoom; UpdateHandleSizes(); Refresh(); }
+    internal Size TipHandleSizeForTest => new(end.Width, end.Height);
     private Point Clamp(Point point) => new(Math.Clamp(point.X, 0, Width), Math.Clamp(point.Y, 0, Height));
     internal void MoveEndpoint(bool first, Vector delta)
     {
@@ -142,8 +185,8 @@ internal sealed class InlineShapeEditor : Canvas
     internal void SetAppearance(double size, Color color)
     {
         Mark = Mark with { Size = size, Color = color };
-        syncing = true; sizePicker.Text = size.ToString(CultureInfo.CurrentCulture); colorPicker.Foreground = color == Colors.White ? Brushes.Gray : new SolidColorBrush(color); syncing = false;
-        InvalidateVisual();
+        syncing = true; sizePicker.Text = size.ToString(CultureInfo.CurrentCulture); colorSwatch.Background = new SolidColorBrush(color); syncing = false;
+        UpdateArrowPreview(); InvalidateVisual();
     }
     private void Refresh()
     {
@@ -151,7 +194,12 @@ internal sealed class InlineShapeEditor : Canvas
         Place(start, Mark.Start); Place(end, Mark.End); Place(move, middle);
         palette.PlacementTarget = Mark.Start.Y >= Mark.End.Y ? start : end;
         RepositionPalette();
+        UpdateArrowPreview();
         InvalidateVisual();
+    }
+    private void UpdateArrowPreview()
+    {
+        arrowPreview?.InvalidateVisual();
     }
     private void Place(Thumb thumb, Point point) { SetLeft(thumb, point.X - thumb.Width / 2); SetTop(thumb, point.Y - thumb.Height / 2); }
     protected override void OnRender(DrawingContext context) { base.OnRender(context); EditDrawing.DrawMark(context, Mark); }

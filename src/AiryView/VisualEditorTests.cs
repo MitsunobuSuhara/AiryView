@@ -41,6 +41,27 @@ internal static class VisualEditorTests
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
         using var output = File.Create(path); encoder.Save(output);
     }
+    private static BitmapSource CheckArrowTipVisible(InlineShapeEditor editor, string description)
+    {
+        editor.Measure(new Size(editor.Width, editor.Height));
+        editor.Arrange(new Rect(0, 0, editor.Width, editor.Height)); editor.UpdateLayout();
+        var image = new RenderTargetBitmap((int)editor.Width, (int)editor.Height, 96, 96, PixelFormats.Pbgra32);
+        var background = new DrawingVisual();
+        using (var dc = background.RenderOpen()) dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, editor.Width, editor.Height));
+        image.Render(background); image.Render(editor);
+        Vector direction = editor.Mark.End - editor.Mark.Start; direction.Normalize();
+        Point sample = editor.Mark.End - direction * 3;
+        int black = 0;
+        for (int y = (int)sample.Y - 1; y <= (int)sample.Y + 1; y++)
+            for (int x = (int)sample.X - 1; x <= (int)sample.X + 1; x++)
+            { var p = Pixel(image, x, y); if (p.A > 180 && p.R < 80 && p.G < 80 && p.B < 80) black++; }
+        if (black < 2)
+        {
+            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
+            using var output = File.Create("artifacts/arrow-tip-failure.png"); encoder.Save(output);
+        }
+        Check(black >= 2, description + $" at {sample}, black pixels={black}"); return image;
+    }
     internal static async Task RunAsync(bool imagesOnly = false)
     {
         string folder = System.IO.Path.GetFullPath("artifacts/editor-tests"); Directory.CreateDirectory(folder);
@@ -61,6 +82,26 @@ internal static class VisualEditorTests
             Check(!outline.FillContains(arrow.End + direction * 3) && !outline.FillContains(arrow.End - direction * 2 + side * 3)
                 && outline.FillContains(arrow.End - direction * 3), "arrow tip is sharp without protruding shaft: " + Array.IndexOf(arrowCases, arrow));
         }
+        var arrowHost = new Window { Width = 420, Height = 440, Title = "矢じり表示テスト" };
+        try
+        {
+            arrowHost.Show();
+            foreach (var arrow in arrowCases)
+            {
+                var editor = new InlineShapeEditor(arrow with { Color = Colors.Black, Size = 2 }, 1, new Size(360, 360), () => { }, () => { }, () => { });
+                arrowHost.Content = editor;
+                await arrowHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                CheckArrowTipVisible(editor, "thin arrow tip remains visible through handles in direction " + Array.IndexOf(arrowCases, arrow));
+                editor.MoveBy(new Vector(5, 5)); editor.MoveEndpoint(false, new Vector(-3, 4));
+                await arrowHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                CheckArrowTipVisible(editor, "arrow tip remains visible after moving and resizing in direction " + Array.IndexOf(arrowCases, arrow));
+                editor.SetAppearance(12, Colors.Black); editor.UpdateZoom(2.5);
+                await arrowHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Check(Math.Abs(editor.TipHandleSizeForTest.Width * 2.5 - 20) < .01, "arrow tip handle retains screen size at zoom");
+                CheckArrowTipVisible(editor, "thick arrow tip remains above handles after zoom in direction " + Array.IndexOf(arrowCases, arrow));
+            }
+        }
+        finally { arrowHost.Close(); }
         var shortArrow = new EditMark("arrow", new(50, 50), new(56, 50), "", Colors.Orange, 30);
         Check(!EditDrawing.Outline(shortArrow, 100, 100).FillContains(new Point(59, 50)), "short thick arrow never projects its round shaft beyond the tip");
         var arrows = new VisualEditModel(null, 360, 360);
@@ -123,6 +164,11 @@ internal static class VisualEditorTests
             && preview.HighlightMethodWidthForTest >= 160, "highlight method keeps its full label visible beside the icon");
         Check(preview.ToolIconsReadyForTest, "all tool choices and highlight methods have right-side vector icons");
         Check(!preview.HighlightMethodVisibleForTest, "highlight method selector stays hidden during other tools");
+        preview.SelectToolForTest("矢印");
+        Check(preview.DrawingHintForTest.Contains("根元を押す") && preview.DrawingHintForTest.Contains("矢じりの位置で離す"),
+            "choosing the arrow tool explains the drag direction before drawing");
+        Check(preview.DrawingMarkForTest(new Point(10, 20), new Point(90, 40)) is { Kind: "arrow", Start.X: 10, Start.Y: 20, End.X: 90, End.Y: 40 },
+            "arrow drawing uses the pressed point as the tail and the released point as the tip");
         preview.SelectToolForTest("ハイライト"); Check(preview.HighlightMethodVisibleForTest, "highlight selection reveals its two drawing methods"); preview.SelectToolForTest("文字");
         Check(preview.CropButtonTextForTest == "クリップ", "image editor labels the separate image operation clip");
         preview.StartCropForTest(); preview.SetCropSelectionForTest(new Rect(10, 10, 50, 35));
@@ -257,6 +303,7 @@ internal static class VisualEditorTests
         var pendingArrow = preview.ActiveShapeEditor; var pendingMark = pendingArrow!.Mark;
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Check(pendingArrow.PaletteOpenForTest, "selected arrow opens a nearby thickness and color palette");
+        SavePreview(preview, folder + "/arrow-editing.png");
         pendingArrow.SelectFormattingForTest(7, 4);
         Check(pendingArrow.Mark is { Size: 7 } && pendingArrow.Mark.Color == Colors.Orange && pendingArrow.Mark.Start == pendingMark.Start && pendingArrow.Mark.End == pendingMark.End, "arrow popup changes appearance without moving endpoints");
         pendingMark = pendingArrow.Mark;

@@ -40,6 +40,12 @@ public partial class App : System.Windows.Application
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            // 非同期の描画エラーも記録し、検証プロセスのエラー小窓を残さない。
+            DispatcherUnhandledException += (_, error) =>
+            {
+                error.Handled = true; Directory.CreateDirectory("artifacts");
+                File.WriteAllText("artifacts/test-failure.txt", error.Exception.ToString()); Shutdown(1);
+            };
             try { await VisualEditorTests.RunAsync(e.Args.Contains("--image-editor-test")); Shutdown(0); }
             catch (Exception ex) { File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
             return;

@@ -1,6 +1,14 @@
 # AiryView 開発引き継ぎ
 
-更新日: 2026-09-28
+更新日: 2026-09-29
+
+@@@整理：今回の途中検証で生成したartifacts/arrow-tip-failure.pngは、後続の成功した編集テストと描画画像に置き換わったため削除。生成テストで再作成可能。例外原因の記録artifacts/arrow-test-crash-before-fix.txtは引継ぎ証跡として保持。tmp/pdfsは以前からある用途未確認のフォルダなので残した。
+
+最新作業：2.1.25で、編集ウインドウがメインと同じ薄いグレーで重なりを判別しづらい点を修正。編集画面の用紙周囲を青みのあるグレー（RGB 199,214,226）、上部操作欄を淡い青（231,240,245）に変更。メインの背景（232,237,244）は変更なし。Releaseビルドと編集テスト成功。artifacts/editor-tests/arrow-editing.pngで編集画面内の境界を確認。最初のProgram Files導入は管理者確認が取り消されたが、利用者の再試行依頼で導入成功。インストーラー終了0、導入版2.1.25.0、ビルド／導入DLL SHA256一致 12ABCD423B8A1A957F9D697B30AB7F8F4EE7FE6F55DD306FE0F7DE6CA25B57E2、導入版の編集テストも終了0。通常ユーザーによる画面目視は未確認。今回の変更は本@@@のcommit対象。無関係なscripts/create-airyview-story.pyは変更対象外。
+
+最新作業：2.1.24で矢印・線・ハイライト等の手元パレットから色見本の「色」文字を削除。現在色を示す丸を18px四角へ変更し、ボタンを幅46px・高さ34pxへ調整。矢印の根元と中央の丸を18→14px、先端の丸を28→20pxに縮小。3つとも小さくする利用者の追加指示を反映。Releaseビルド、編集・UIテスト成功。Program Filesへ導入、インストーラー終了0、導入版2.1.24.0、ビルド／導入DLL SHA256一致 9F1A2F860C8C465EE3FF85753C979990DD26E3F40141497E2EFC381A9099FFCC。導入版編集テストも終了0。通常ユーザーの実操作は未確認。今回の変更は本@@@のcommit対象。無関係なscripts/create-airyview-story.pyは変更対象外。
+
+最新作業：2.1.23で矢印の操作つまみを透明な丸へ変更し、移動・長さ変更・表示倍率変更の間も矢じりが見えるようにした。先端は大きな丸、根元と中央は小さな丸。矢印ツールに「根元を押す → 矢じりの位置で離す」の案内を表示し、描き始めに根元の目印を出す。8方向の細い／太い矢印、移動と端点変更、倍率変更、始点と終点の意味を自動確認。検証中に利用者へ表示されたdotnet.exe例外は、編集要素の画面切替中に表示先のないVisualへPointToScreenを呼んだことが原因。表示先確認を追加して修正し、編集テスト中の非同期例外もログと終了コード1で記録するようにした。Releaseビルド・編集・UIテスト成功。Program Filesへ導入、インストーラー終了0、導入版2.1.23.0、ビルド／導入DLL SHA256一致 74EEFD00106F1A8CE0752A5FFE2BB1475EA52C58AB7F122E569DB85602156A42。導入版の編集テストも終了0。導入版テストの描画画像artifacts/editor-tests/arrow-editing.pngで矢じりと透明な丸を確認。通常ユーザーによる更新後の実操作は未確認。今回の変更は本@@@のcommit対象。無関係なscripts/create-airyview-story.pyは変更対象外。
 
 最新作業：2.1.22でツルのアプリアイコンを青緑グラデーションへ更新。白いツルの原画は保持し、scripts/make-icon.ps1の丸い背景をタイトルバーと同じ3色の横グラデーションへ変更。16/24/32/48/64/128/256pxのICOを再生成。Releaseビルド／実行用フォルダ生成とUIテスト成功。Program Filesへ導入、インストーラー終了0、導入版2.1.22.0、DLL SHA256 8FB12026554E0810AE232ABD2743C94025BC37DB027A6EB3292DFE404977CED0、ICO SHA256 018A92FF4EAC50C12D027EBCDBBB9DE629C2FC8A2C1824C34CEAF28AD89751CE がビルドと一致。プレビューはartifacts/icon-gradient-preview.png。通常起動した導入版の開始画面とタイトル左上で、青緑のツルアイコンを目視確認。2.1.20〜2.1.22の変更として今回の@@@でまとめて保存。無関係なscripts/create-airyview-story.pyは変更対象外。
 
@@ -542,7 +550,7 @@ PDF寸法取得の本文解析・繰返し取得、WebP/SVGのPNG中間変換、
 - Release・.NET同梱publish成功。NuGet脆弱性情報取得のNU1900警告のみ。生成物はartifacts/app、検証記録はartifacts/startup-test-results.txtとstartup-final-build.log。
 - 次は2.0.15のインストール反映確認と実利用での再発有無確認。GPU描画等による別原因までは今回の合成テストでは否定できない。既存scripts/create-airyview-story.pyの変更は対象外として保持。
 - WPF JumpList.ApplyはSTAを要求するがApplicationへの取付けは必須でないことを公式ソースで確認: https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Shell/JumpList.cs
-2026-09-26 18:27 インストール完了。C:\Program Files\AiryView\AiryView.dllは2.0.15.0、artifacts/appとのSHA256一致、install-result.txtの更新を確認。既存の起動プロセスは通常終了要求で閉じ、強制終了はしていない。検証合計213件（自己42・UI149・起動22）。今回の変更は未commit。
+2026-09-26 18:27 インストール完了。C:\Program Files\AiryView\AiryView.dllは2.0.15.0、artifacts/appとのSHA256一致、install-result.txtの更新を確認。既存の起動プロセスは通常終了要求で閉じ、強制終了はしていない。検証合計213件（自己42・UI149・起動22）。今回の変更は本@@@のcommit対象。
 
 ## GitHub Release v2.0.15と受け渡しエラーの復旧（2026-09-26）
 
