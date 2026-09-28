@@ -557,8 +557,10 @@ public static class SelfTest
         Check(window.ActiveZoomForTest > imageZoom && ((Image)window.FindName("ReaderImage")).Width > 0, "画像をCtrlホイール相当で拡大");
         Check(((FrameworkElement)window.FindName("RotationControls")).Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("FitWidthButton")).Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("ResetRotationButton")).Visibility == Visibility.Visible, "画像の回転・リセット・画面内フィットを表示");
         var resetRotation = (Button)window.FindName("ResetRotationButton");
-        var rotateLeft = FindButtons((DependencyObject)window.FindName("RotationControls")).First(b => b.ToolTip?.ToString()?.StartsWith("左に90度回転") == true);
-        Check(Near(resetRotation.ActualHeight, rotateLeft.ActualHeight, 1), "回転を元に戻すボタンの高さを他の回転ボタンと揃える");
+        var rotationButtons = FindButtons((DependencyObject)window.FindName("RotationControls")).ToArray();
+        var imageOpenButton = FindButtons((DependencyObject)window.FindName("DocumentToolbar")).First(b => b.ToolTip?.ToString()?.StartsWith("開く / Open") == true);
+        Check(rotationButtons.Length == 3 && rotationButtons.All(b => Near(b.ActualHeight, imageOpenButton.ActualHeight, 1)), "回転ボタンの枠の高さを主操作ボタンと揃える");
+        Check(resetRotation.ToolTip?.ToString()?.Contains("0°") == true, "回転のリセットを0度と明示する");
         int tabsBeforeClose = window.TabCountForTest;
         window.CloseCurrentTabForTest(); window.UpdateLayout();
         Check(window.TabCountForTest == tabsBeforeClose - 1, "保存済みタブを閉じて復元履歴へ追加");
@@ -581,6 +583,7 @@ public static class SelfTest
         Check(pageTotal >= 2, "連続表示の検証対象が複数ページ");
         await window.OpenPathsAsync([uiPath]);
         window.UpdateLayout();
+        Check(rotationButtons.All(b => Near(b.ActualHeight, imageOpenButton.ActualHeight, 1)), "PDF画面でも回転ボタンの枠の高さを揃える");
         var pageButtons = FindButtons((DependencyObject)window.FindName("PageControls")).ToArray();
         var openButton = FindButtons((DependencyObject)window.FindName("DocumentToolbar")).First(b => b.ToolTip?.ToString()?.StartsWith("開く / Open") == true);
         Check(pageButtons.Length == 2 && pageButtons.All(b => Near(b.ActualHeight, openButton.ActualHeight, 1)), $"ページ送りボタンの高さを主操作ボタンと揃える ({string.Join(",", pageButtons.Select(b => b.ActualHeight))} vs {openButton.ActualHeight})");
