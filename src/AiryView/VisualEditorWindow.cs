@@ -249,10 +249,9 @@ internal sealed class VisualEditorWindow : Window
         for (int i = model.Frame.Marks.Length - 1; i >= 0; i--)
         {
             var candidate = model.Frame.Marks[i]; if (candidate.Kind != "text") continue;
-            var layout = new FormattedText(candidate.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-                EditorFonts.Typeface(candidate.FontId, candidate.Bold), candidate.Size, Brushes.Black, 1) { LineHeight = candidate.Size * 1.3 };
-            var box = new Rect(candidate.Start, new Size(Math.Max(1, layout.WidthIncludingTrailingWhitespace), layout.Height));
-            box.Inflate(3 / zoom, 3 / zoom);
+            Rect box = EditDrawing.Outline(candidate, model.Frame.Width, model.Frame.Height).Bounds;
+            box.Union(new Rect(candidate.Start, new Size(1, candidate.Size * 1.3)));
+            box.Inflate(6 / zoom, 6 / zoom);
             if (box.Contains(point)) { editingIndex = i; break; }
         }
         EditMark mark = editingIndex >= 0 ? model.Frame.Marks[editingIndex] : Mark(point, point);
@@ -263,13 +262,14 @@ internal sealed class VisualEditorWindow : Window
         color.SelectedIndex = Math.Max(0, Array.IndexOf(colors, mark.Color));
         textEditor = new InlineTextEditor(mark.Start, mark.Text, mark.Size, mark.Color, zoom,
             new Size(model.Frame.Width, model.Frame.Height), CommitEdits, CancelEdits,
-            editingIndex >= 0 ? () => { model.Replace(editingIndex, null); CancelEdits(); UpdateSurface(); } : null);
-        textEditor.SetFont(mark.FontId, mark.Bold);
+            editingIndex >= 0 ? () => { model.Replace(editingIndex, null); CancelEdits(); UpdateSurface(); } : null, mark.TextSegments);
+        if (mark.TextSegments is { Length: > 0 }) textEditor.SetDefaultFont(mark.FontId, mark.Bold);
+        else textEditor.SetFont(mark.FontId, mark.Bold);
         textEditor.AppearanceChanged += SyncInlineFormatting;
         textEditor.SaveRequested += async () => { try { await SaveAsync(); } catch (Exception ex) { ShowError(ex); } };
         textEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = editingIndex; surface.Children.Add(textEditor); surface.InvalidateVisual();
-        status.Text = "Enterで改行。入力欄左上の四方向アイコンで移動、右下のつまみで大きさを調整。左下の「書式」で書体・サイズ・色を変更できます。確定済みの文字は選び直して「削除」できます。Ctrl+Enterで確定、Escで取消。";
+        status.Text = "Enterで改行。文字を選んで左下のAアイコンから書体・サイズ・色を変更できます。左上の四方向アイコンで移動、右下のつまみで大きさを調整。Ctrl+Enterで確定、Escで取消。";
     }
     private void SyncInlineFormatting()
     {
@@ -673,7 +673,9 @@ internal sealed class VisualEditorWindow : Window
         if (string.Equals(System.IO.Path.GetFullPath(destination), System.IO.Path.GetFullPath(pdf.Path), StringComparison.OrdinalIgnoreCase)) throw new IOException("原本とは別の名前で保存してください。");
         var drawings = pages.Where(p => p.Value.Frame.Marks.Length > 0).Select(p =>
             new PdfDrawingPage(p.Key, p.Value.Frame.Width, p.Value.Frame.Height,
-                p.Value.Frame.Marks.Select(m => new PdfDrawingShape(EditDrawing.Outline(m, p.Value.Frame.Width, p.Value.Frame.Height), EditDrawing.Ink(m))).ToArray())).ToArray();
+                p.Value.Frame.Marks.SelectMany(m => m.Kind == "text" && m.TextSegments is { Length: > 0 }
+                    ? EditDrawing.TextShapes(m).Select(shape => new PdfDrawingShape(shape.Geometry, shape.Color))
+                    : [new PdfDrawingShape(EditDrawing.Outline(m, p.Value.Frame.Width, p.Value.Frame.Height), EditDrawing.Ink(m))]).ToArray())).ToArray();
         if (drawings.Length == 0) throw new IOException("書き込みを追加してから保存してください。");
         await Task.Run(() => pdf.SaveDrawings(destination, drawings));
         foreach (var model in pages.Values) model.MarkSaved();

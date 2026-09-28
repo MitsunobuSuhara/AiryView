@@ -115,6 +115,8 @@ internal static class VisualEditorTests
         Check(!preview.ActiveTextEditor!.CanDeleteForTest, "new text has no delete button before it is committed");
         var pendingText = preview.ActiveTextEditor;
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        Check(pendingText!.Input.Height < 50 && ScrollViewer.GetHorizontalScrollBarVisibility(pendingText.Input) == ScrollBarVisibility.Disabled,
+            "empty rich text box starts compact without a horizontal scrollbar");
         Check(pendingText!.Ink == Colors.Black && !pendingText.PaletteOpenForTest, "text formatting stays hidden while typing");
         pendingText.OpenFormattingForTest();
         Check(pendingText.PaletteOpenForTest, "text formatting opens from its corner button");
@@ -123,19 +125,37 @@ internal static class VisualEditorTests
         pendingText.SelectColorForTest(1);
         Check(pendingText.Ink == Colors.Red && pendingText.Mark is { FontId: "shippori", Size: 18, Bold: true }, "popup color selection preserves other formatting");
         pendingText.SelectColorForTest(0);
-        pendingText!.Input.Text = "入力中";
+        pendingText.PlainText = "赤青";
+        pendingText.SelectTextForTest(0, 1);
+        pendingText.SelectColorForTest(1);
+        Check(pendingText.Mark.TextSegments is { Length: > 1 } parts && parts.Any(part => part.Text == "赤" && part.Color == Colors.Red)
+            && parts.Any(part => part.Text == "青" && part.Color == Colors.Black), "selected text alone changes color within one text box");
+        pendingText.SelectFormattingForTest("shippori", 24, true);
+        Check(pendingText.Mark.TextSegments is { Length: > 1 } sized && sized.Any(part => part.Text == "赤" && part.Size == 24)
+            && sized.Any(part => part.Text == "青" && part.Size == 18), "selected text alone changes size within one text box");
+        Check(EditDrawing.TextShapes(pendingText.Mark).Select(shape => shape.Color).Distinct().Count() == 2
+            && EditDrawing.TextShapes(pendingText.Mark).All(shape => shape.Geometry.IsFrozen),
+            "mixed text colors remain separate vector shapes for PDF saving");
+        EditMark styledMark = pendingText.Mark;
+        var reopened = new InlineTextEditor(styledMark.Start, styledMark.Text, styledMark.Size, styledMark.Color, 1,
+            new Size(400, 300), () => { }, () => { }, segments: styledMark.TextSegments);
+        reopened.SetDefaultFont(styledMark.FontId, styledMark.Bold);
+        Check(reopened.Mark.TextSegments is { Length: > 1 } restored && restored.Any(part => part.Text == "赤" && part.Size == 24 && part.Color == Colors.Red)
+            && restored.Any(part => part.Text == "青" && part.Size == 18 && part.Color == Colors.Black),
+            "reopening one text box preserves mixed character formatting");
+        pendingText!.PlainText = "入力中";
         Check(!pendingText.PaletteOpenForTest, "typing hides the formatting palette");
         preview.HandleEditorWheel(120, true, new Point(100, 100));
-        Check(ReferenceEquals(preview.ActiveTextEditor, pendingText) && pendingText.Input.Text == "入力中" && preview.CurrentModelForTest!.Frame.Marks.Length == 0, "wheel zoom preserves live text input without committing it");
-        preview.ActiveTextEditor!.Input.Text = "日本語\n二行目"; preview.ActiveTextEditor.SetFont("shippori", true); preview.CommitEdits();
+        Check(ReferenceEquals(preview.ActiveTextEditor, pendingText) && pendingText.PlainText == "入力中" && preview.CurrentModelForTest!.Frame.Marks.Length == 0, "wheel zoom preserves live text input without committing it");
+        preview.ActiveTextEditor!.PlainText = "日本語\n二行目"; preview.ActiveTextEditor.SetFont("shippori", true); preview.CommitEdits();
         Check(!pendingText.PaletteOpenForTest, "committing text closes the floating palette");
         var editedModel = preview.CurrentModelForTest!;
         Check(editedModel.Frame.Marks[0].FontId == "shippori" && editedModel.Frame.Marks[0].Bold, "inline text retains selected font and bold style");
         Check(editedModel.Frame.Marks.Length == 1 && editedModel.Frame.Marks[0].Text.Contains("二行目"), "inline text box commits multiline text");
-        preview.BeginText(new Point(12, 12)); preview.ActiveTextEditor!.Input.Text = "修正"; preview.CommitEdits();
+        preview.BeginText(new Point(12, 12)); preview.ActiveTextEditor!.PlainText = "修正"; preview.CommitEdits();
         Check(editedModel.Frame.Marks.Length == 1 && editedModel.Frame.Marks[0].Text == "修正", "clicking text updates the existing object");
         editedModel.Undo(); Check(editedModel.Frame.Marks[0].Text.Contains("二行目"), "undo restores text before editing"); editedModel.Redo();
-        preview.BeginText(new Point(12, 12)); preview.ActiveTextEditor!.Input.Text = "取消"; preview.CancelEdits();
+        preview.BeginText(new Point(12, 12)); preview.ActiveTextEditor!.PlainText = "取消"; preview.CancelEdits();
         Check(editedModel.Frame.Marks[0].Text == "修正", "canceling inline edit preserves committed text");
         preview.BeginText(new Point(12, 12));
         Check(preview.ActiveTextEditor!.CanDeleteForTest, "reselected committed text offers a delete button");

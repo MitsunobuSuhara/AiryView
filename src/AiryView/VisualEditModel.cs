@@ -2,7 +2,8 @@ using System.Globalization;
 
 namespace AiryView;
 
-internal sealed record EditMark(string Kind, Point Start, Point End, string Text, Color Color, double Size, string FontId = "MS Gothic", bool Bold = false, Point[]? StrokePoints = null, Rect[]? HighlightBoxes = null);
+internal sealed record TextSegment(string Text, Color Color, double Size, string FontId, bool Bold);
+internal sealed record EditMark(string Kind, Point Start, Point End, string Text, Color Color, double Size, string FontId = "MS Gothic", bool Bold = false, Point[]? StrokePoints = null, Rect[]? HighlightBoxes = null, TextSegment[]? TextSegments = null);
 internal sealed record EditFrame(BitmapSource? Image, double Width, double Height, EditMark[] Marks);
 
 // 編集中だけ存在する履歴。閲覧用のBitmapSourceは変更しない。
@@ -104,6 +105,33 @@ internal sealed class VisualEditModel
 
 internal static class EditDrawing
 {
+    internal static IEnumerable<(PathGeometry Geometry, Color Color)> TextShapes(EditMark mark)
+    {
+        if (mark.TextSegments is not { Length: > 0 })
+        {
+            var plain = new FormattedText(mark.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                EditorFonts.Typeface(mark.FontId, mark.Bold), mark.Size, Brushes.Black, 1) { LineHeight = mark.Size * 1.3 };
+            var geometry = plain.BuildGeometry(mark.Start).GetFlattenedPathGeometry(.02, ToleranceType.Absolute);
+            geometry.Freeze(); yield return (geometry, mark.Color);
+            yield break;
+        }
+        double x = mark.Start.X, y = mark.Start.Y, lineHeight = mark.Size * 1.3;
+        foreach (var segment in mark.TextSegments)
+        {
+            string[] lines = segment.Text.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (i > 0) { y += lineHeight; x = mark.Start.X; lineHeight = mark.Size * 1.3; }
+                if (lines[i].Length == 0) continue;
+                var text = new FormattedText(lines[i], CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                    EditorFonts.Typeface(segment.FontId, segment.Bold), segment.Size, Brushes.Black, 1);
+                var geometry = text.BuildGeometry(new Point(x, y)).GetFlattenedPathGeometry(.02, ToleranceType.Absolute);
+                geometry.Freeze(); yield return (geometry, segment.Color);
+                x += text.WidthIncludingTrailingWhitespace;
+                lineHeight = Math.Max(lineHeight, segment.Size * 1.3);
+            }
+        }
+    }
     internal static Color Ink(EditMark mark) => mark.Kind.StartsWith("highlight", StringComparison.Ordinal) ? Color.FromArgb(96, mark.Color.R, mark.Color.G, mark.Color.B) : mark.Color;
     // 画面とPDFで同じ輪郭を使う。棒は矢じりの底で止め、先端へ重ねない。
     private static Geometry ShapeGeometry(EditMark mark)
@@ -147,9 +175,9 @@ internal static class EditDrawing
         Geometry geometry;
         if (mark.Kind == "text")
         {
-            var text = new FormattedText(mark.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-                EditorFonts.Typeface(mark.FontId, mark.Bold), mark.Size, Brushes.Black, 1) { LineHeight = mark.Size * 1.3 };
-            geometry = text.BuildGeometry(mark.Start);
+            var group = new GeometryGroup();
+            foreach (var shape in TextShapes(mark)) group.Children.Add(shape.Geometry);
+            geometry = group;
         }
         else geometry = ShapeGeometry(mark);
         var clipped = Geometry.Combine(geometry, new RectangleGeometry(new Rect(0, 0, width, height)), GeometryCombineMode.Intersect, null);
@@ -168,9 +196,15 @@ internal static class EditDrawing
         var brush = new SolidColorBrush(Ink(mark)); brush.Freeze();
         if (mark.Kind == "text")
         {
-            var text = new FormattedText(mark.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-                EditorFonts.Typeface(mark.FontId, mark.Bold), mark.Size, brush, 1) { LineHeight = mark.Size * 1.3 };
-            dc.DrawText(text, mark.Start); return;
+            if (mark.TextSegments is not { Length: > 0 })
+            {
+                var text = new FormattedText(mark.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                    EditorFonts.Typeface(mark.FontId, mark.Bold), mark.Size, brush, 1) { LineHeight = mark.Size * 1.3 };
+                dc.DrawText(text, mark.Start); return;
+            }
+            foreach (var (geometry, color) in TextShapes(mark))
+                dc.DrawGeometry(new SolidColorBrush(color), null, geometry);
+            return;
         }
         dc.DrawGeometry(brush, null, ShapeGeometry(mark));
     }
