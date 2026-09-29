@@ -87,6 +87,7 @@ internal sealed class VisualEditorWindow : Window
     private bool busy, sizing, syncingFormat;
     private double zoom = 1;
     private Point? drag;
+    private bool textBoxDrag;
     private bool cropMode;
     private Rect? cropSelection;
     private Rect cropAtDragStart;
@@ -103,7 +104,7 @@ internal sealed class VisualEditorWindow : Window
     private readonly StackPanel controls = new();
     private readonly EditSurface surface = new() { Focusable = true, ClipToBounds = true };
     private readonly ScrollViewer viewer = new() { Background = new SolidColorBrush(Color.FromRgb(199, 214, 226)), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-    private readonly ComboBox tool = new() { Width = 142, Margin = new Thickness(4), SelectedIndex = 0, ToolTip = "文字：用紙をクリックして入力\n矢印：起点を押し、先端にしたい位置までドラッグして離す\n線・四角形・円／楕円：ドラッグして配置\nハイライト：選択後に範囲指定またはフリーハンドを選択\n配置した文字・図形はクリックして再編集" };
+    private readonly ComboBox tool = new() { Width = 142, Margin = new Thickness(4), SelectedIndex = 0, ToolTip = "文字：用紙をドラッグして枠を作り、入力。クリックだけでも入力できます\n矢印：起点を押し、先端にしたい位置までドラッグして離す\n線・四角形・円／楕円：ドラッグして配置\nハイライト：選択後に範囲指定またはフリーハンドを選択\n配置した文字・図形はクリックして再編集" };
     private readonly ComboBox highlightMethod = new() { Width = 166, Margin = new Thickness(4), Visibility = Visibility.Collapsed, ToolTip = "ハイライトの方法\n範囲指定：PDFの文字には自動でフィット、画像では四角い範囲\nフリーハンド：描いた軌跡に沿う" };
     private readonly ComboBox color = new() { Width = 80, Margin = new Thickness(4), SelectedIndex = 1 };
     private readonly ComboBox font = new() { Width = 190, Margin = new Thickness(4), ToolTip = "文字のフォント" };
@@ -113,7 +114,7 @@ internal sealed class VisualEditorWindow : Window
     private readonly TextBlock status = new() { Margin = new Thickness(10), TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock centimeters = new() { Margin = new Thickness(10, 0, 10, 5), Foreground = Brushes.DimGray, FontSize = 12 };
     private readonly TextBlock pageLabel = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8) };
-    private readonly TextBlock drawingHint = new() { Text = "文字は用紙をクリックして入力", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4) };
+    private readonly TextBlock drawingHint = new() { Text = "文字はドラッグで枠を作って入力", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4) };
     private Button undo = null!, redo = null!, saveButton = null!;
     private Button cropButton = null!;
     private Popup? cropPopup;
@@ -203,7 +204,7 @@ internal sealed class VisualEditorWindow : Window
             height.TextChanged += (_, _) => { KeepAspect(false); UpdateCentimeters(); };
         }
         else { fontSize.Text = "14"; stroke.Text = "2"; }
-        status.Text = "文字は用紙をクリックして入力。矢印・線・図形・ハイライトはドラッグ。画像のクリップは範囲を調整し、近くの操作ウィンドウで確定します。別名で保存します。";
+        status.Text = "文字はドラッグで枠を作って入力（クリックだけでも可）。矢印・線・図形・ハイライトはドラッグ。画像のクリップは範囲を調整し、近くの操作ウィンドウで確定します。別名で保存します。";
         surface.MouseLeftButtonDown += PointerDown; surface.MouseMove += PointerMove; surface.MouseLeftButtonUp += PointerUp;
         surface.LostMouseCapture += (_, _) => CancelDrag();
         Deactivated += (_, _) => { if (cropPopup != null) cropPopup.IsOpen = false; };
@@ -281,14 +282,15 @@ internal sealed class VisualEditorWindow : Window
         color.SelectedIndex = Math.Max(0, Array.IndexOf(colors, mark.Color));
         textEditor = new InlineTextEditor(mark.Start, mark.Text, mark.Size, mark.Color, zoom,
             new Size(model.Frame.Width, model.Frame.Height), CommitEdits, CancelEdits,
-            editingIndex >= 0 ? () => { model.Replace(editingIndex, null); CancelEdits(); UpdateSurface(); } : null, mark.TextSegments);
+            editingIndex >= 0 ? () => { model.Replace(editingIndex, null); CancelEdits(); UpdateSurface(); } : null,
+            mark.TextSegments, mark.TextBoxWidth, mark.TextBoxHeight);
         if (mark.TextSegments is { Length: > 0 }) textEditor.SetDefaultFont(mark.FontId, mark.Bold);
         else textEditor.SetFont(mark.FontId, mark.Bold);
         textEditor.AppearanceChanged += SyncInlineFormatting;
         textEditor.SaveRequested += async () => { try { await SaveAsync(); } catch (Exception ex) { ShowError(ex); } };
         textEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = editingIndex; surface.Children.Add(textEditor); surface.InvalidateVisual();
-        status.Text = "Enterで改行。文字を選んで左下のAアイコンから書体・サイズ・色を変更できます。左上の四方向アイコンで移動、右下のつまみで大きさを調整。選択中の枠はDeleteで削除。Ctrl+Enterで確定、Escで取消。";
+        status.Text = "Enterで改行。文字を選んで左下のAアイコンから書体・サイズ・色を変更できます。枠の線上をドラッグして移動、周囲の丸で大きさを調整。選択中の枠はDeleteで削除。Ctrl+Enterで確定、Escで取消。";
     }
     private int HitText(Point point)
     {
@@ -345,9 +347,9 @@ internal sealed class VisualEditorWindow : Window
         shapeEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = index; surface.Children.Add(shapeEditor); surface.InvalidateVisual();
         status.Text = mark.Kind.StartsWith("highlight", StringComparison.Ordinal)
-            ? "角の四角で範囲、中央の四角で位置を調整。近くのパレットで色を変更できます。ハイライトを選んだ状態でクリックすると再編集できます。"
-            : mark.Kind == "arrow" ? "小さい丸が起点、大きい丸が先端。両端の丸で長さ・向き、中央の丸で移動。先端は操作中も見えます。"
-            : "両端の四角で長さ・向きを調整。中央の四角で移動。近くのパレットで色・太さを変更できます。確定後も矢印・線をクリックして修正できます。";
+            ? "角の丸で範囲、中央の移動マークで位置を調整。近くのパレットで色を変更できます。ハイライトを選んだ状態でクリックすると再編集できます。"
+            : mark.Kind == "arrow" ? "両端の丸は起点と先端。長さ・向きを調整し、中央の移動マークで移動できます。先端は操作中も見えます。"
+            : "両端の丸で長さ・向きを調整。中央の移動マークで移動。近くのパレットで色・太さを変更できます。確定後も線・図形をクリックして修正できます。";
     }
     private int HitShape(Point point)
     {
@@ -458,9 +460,9 @@ internal sealed class VisualEditorWindow : Window
     private void UpdateDrawingHint()
     {
         drawingHint.Text = ToolName == "矢印" ? "○ 起点を押す → 先端の位置で離す"
-            : ToolName == "文字" ? "文字は用紙をクリックして入力" : "用紙をドラッグして描く";
+            : ToolName == "文字" ? "文字はドラッグで枠を作って入力" : "用紙をドラッグして描く";
         status.Text = ToolName == "矢印" ? "起点を押し、指したい位置までドラッグして離すと、その位置が先端になります。"
-            : "文字は用紙をクリックして入力。線・図形・ハイライトはドラッグして描きます。配置後もクリックして修正できます。";
+            : "文字はドラッグで枠を作って入力（クリックだけでも可）。線・図形・ハイライトはドラッグして描きます。配置後もクリックして修正できます。";
     }
     internal EditMark DrawingMarkForTest(Point start, Point end) => Mark(start, end);
     internal double ToolWidthForTest => tool.Width;
@@ -630,7 +632,7 @@ internal sealed class VisualEditorWindow : Window
             int hit = textHit < 0 ? HitShape(p) : -1;
             if (textHit >= 0) BeginText(p);
             else if (hit >= 0) BeginShape(model.Frame.Marks[hit], hit);
-            else if (ToolName == "文字") BeginText(p);
+            else if (ToolName == "文字") { BeginText(p); drag = p; textBoxDrag = true; surface.CaptureMouse(); }
             else
             {
                 if (IsRangeHighlightTool && pdf != null && !highlightCharacters.ContainsKey(page)) highlightCharacters[page] = pdf.TextCharacters(page);
@@ -654,6 +656,11 @@ internal sealed class VisualEditorWindow : Window
         try
         {
             Point point = Position(e);
+            if (textBoxDrag)
+            {
+                if ((point - start).Length * zoom >= 3) textEditor?.SetBoxFromDrag(start, point);
+                surface.InvalidateVisual(); return;
+            }
             if (IsFreehandTool) AddFreehandPoint(point);
             if (IsCropTool) SetCropSelection(AdjustCrop(start, point)); else surface.PendingMark = Mark(start, point);
             surface.InvalidateVisual();
@@ -666,6 +673,11 @@ internal sealed class VisualEditorWindow : Window
         Point end = Position(e);
         try
         {
+            if (textBoxDrag)
+            {
+                if ((end - start).Length * zoom >= 3) textEditor?.SetBoxFromDrag(start, end);
+                CancelDrag(); textEditor?.Input.Focus(); e.Handled = true; return;
+            }
             if (IsFreehandTool) AddFreehandPoint(end);
             bool enough = IsFreehandTool ? freehandPoints.Count > 1 : (end - start).Length * zoom >= 3;
             if (IsCropTool) { SetCropSelection(AdjustCrop(start, end)); CancelDrag(); UpdateCropPopup(); e.Handled = true; return; }
@@ -681,7 +693,7 @@ internal sealed class VisualEditorWindow : Window
         if (freehandPoints.Count >= 2048) { var reduced = freehandPoints.Where((_, i) => i % 2 == 0).ToArray(); freehandPoints.Clear(); freehandPoints.AddRange(reduced); }
         freehandPoints.Add(point);
     }
-    private void CancelDrag() { drag = null; freehandPoints.Clear(); surface.PendingMark = null; if (surface.IsMouseCaptured) surface.ReleaseMouseCapture(); surface.InvalidateVisual(); }
+    private void CancelDrag() { drag = null; textBoxDrag = false; freehandPoints.Clear(); surface.PendingMark = null; if (surface.IsMouseCaptured) surface.ReleaseMouseCapture(); surface.InvalidateVisual(); }
     private async Task LoadPage(int target)
     {
         if (busy || pdf == null || target < 0 || target >= pdf.Count) return;

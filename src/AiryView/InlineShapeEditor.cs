@@ -77,14 +77,14 @@ internal sealed class InlineShapeEditor : Canvas
             button.Click += (_, e) => { e.Handled = true; action(); }; commands.Children.Add(button);
         }
         root.Children.Add(commands);
-        if (arrow) root.Children.Add(new TextBlock { Text = "○ 起点  ──▶  先端\n端の丸で長さ・向き、中央の丸で移動", FontSize = 12,
+        if (arrow) root.Children.Add(new TextBlock { Text = "○ 起点  ──▶  先端\n端の丸で長さ・向き、中央の移動マークで移動", FontSize = 12,
             Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 9) });
         var formats = new StackPanel { Orientation = Orientation.Horizontal };
         formats.Children.Add(new TextBlock { Text = "太さ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });
         sizePicker = new TextBox { Width = 54, Height = 30, Padding = new Thickness(5, 2, 5, 2), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "線の太さ", Margin = new Thickness(0, 0, 7, 0) };
         formats.Children.Add(FontSizeControls.Wrap(sizePicker, stroke: true));
         formats.Children.Add(new TextBlock { Text = sizeUnit, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) });
-        if (area) { formats.Children.Clear(); formats.Children.Add(new TextBlock { Text = "角で範囲・中央で移動", Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center }); }
+        if (area) { formats.Children.Clear(); formats.Children.Add(new TextBlock { Text = "角の丸で範囲・中央の移動マークで移動", Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center }); }
         colorSwatch = new Border { Width = 18, Height = 18, Background = new SolidColorBrush(mark.Color),
             BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2) };
         colorPicker = new Button { Content = colorSwatch, ToolTip = highlight ? "ハイライトの色" : "矢印・線の色",
@@ -148,14 +148,32 @@ internal sealed class InlineShapeEditor : Canvas
     {
         foreach (Thumb thumb in new[] { start, end, move })
         {
-            thumb.Width = thumb.Height = (Mark.Kind == "arrow" ? ReferenceEquals(thumb, end) ? 20 : 14 : 18) * unit;
+            thumb.Width = thumb.Height = (ReferenceEquals(thumb, move) ? 20 : 14) * unit;
             thumb.BorderThickness = new Thickness(unit);
-            if (Mark.Kind != "arrow") continue;
-            var ring = new FrameworkElementFactory(typeof(System.Windows.Shapes.Ellipse));
-            ring.SetValue(System.Windows.Shapes.Shape.FillProperty, Brushes.Transparent);
-            ring.SetValue(System.Windows.Shapes.Shape.StrokeProperty, Brushes.DodgerBlue);
-            ring.SetValue(System.Windows.Shapes.Shape.StrokeThicknessProperty, 1.2 * unit);
-            thumb.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = ring };
+            if (ReferenceEquals(thumb, move))
+            {
+                var marker = new FrameworkElementFactory(typeof(Border));
+                marker.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(235, 241, 245, 249)));
+                marker.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(20, 80, 106)));
+                marker.SetValue(Border.BorderThicknessProperty, new Thickness(1.2 * unit));
+                marker.SetValue(Border.CornerRadiusProperty, new CornerRadius(3 * unit));
+                var symbol = new FrameworkElementFactory(typeof(TextBlock));
+                symbol.SetValue(TextBlock.TextProperty, "✥");
+                symbol.SetValue(TextBlock.FontSizeProperty, 15 * unit);
+                symbol.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(29, 78, 110)));
+                symbol.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+                symbol.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+                marker.AppendChild(symbol);
+                thumb.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = marker };
+            }
+            else
+            {
+                var ring = new FrameworkElementFactory(typeof(System.Windows.Shapes.Ellipse));
+                ring.SetValue(System.Windows.Shapes.Shape.FillProperty, Brushes.Transparent);
+                ring.SetValue(System.Windows.Shapes.Shape.StrokeProperty, new SolidColorBrush(Color.FromRgb(20, 80, 106)));
+                ring.SetValue(System.Windows.Shapes.Shape.StrokeThicknessProperty, 1.2 * unit);
+                thumb.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = ring };
+            }
         }
     }
     internal void UpdateZoom(double zoom) { unit = 1 / zoom; UpdateHandleSizes(); Refresh(); }

@@ -3,7 +3,7 @@ using System.Globalization;
 namespace AiryView;
 
 internal sealed record TextSegment(string Text, Color Color, double Size, string FontId, bool Bold);
-internal sealed record EditMark(string Kind, Point Start, Point End, string Text, Color Color, double Size, string FontId = "MS Gothic", bool Bold = false, Point[]? StrokePoints = null, Rect[]? HighlightBoxes = null, TextSegment[]? TextSegments = null);
+internal sealed record EditMark(string Kind, Point Start, Point End, string Text, Color Color, double Size, string FontId = "MS Gothic", bool Bold = false, Point[]? StrokePoints = null, Rect[]? HighlightBoxes = null, TextSegment[]? TextSegments = null, double? TextBoxWidth = null, double? TextBoxHeight = null);
 internal sealed record EditFrame(BitmapSource? Image, double Width, double Height, EditMark[] Marks);
 
 // 編集中だけ存在する履歴。閲覧用のBitmapSourceは変更しない。

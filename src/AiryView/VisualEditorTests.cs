@@ -97,11 +97,21 @@ internal static class VisualEditorTests
                 CheckArrowTipVisible(editor, "arrow tip remains visible after moving and resizing in direction " + Array.IndexOf(arrowCases, arrow));
                 editor.SetAppearance(12, Colors.Black); editor.UpdateZoom(2.5);
                 await arrowHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-                Check(Math.Abs(editor.TipHandleSizeForTest.Width * 2.5 - 20) < .01, "arrow tip handle retains screen size at zoom");
+                Check(Math.Abs(editor.TipHandleSizeForTest.Width * 2.5 - 14) < .01, "arrow tip handle matches the other endpoint at zoom");
                 CheckArrowTipVisible(editor, "thick arrow tip remains above handles after zoom in direction " + Array.IndexOf(arrowCases, arrow));
             }
         }
         finally { arrowHost.Close(); }
+        foreach (string kind in new[] { "arrow", "line", "rectangle", "ellipse", "highlight", "highlight-freehand", "highlight-text" })
+        {
+            var mark = new EditMark(kind, new(30, 30), new(100, 80), "", Colors.Blue, 3);
+            var editor = new InlineShapeEditor(mark, 1, new Size(200, 120), () => { }, () => { }, () => { });
+            var grips = editor.Children.OfType<System.Windows.Controls.Primitives.Thumb>().ToArray();
+            var moveMarker = grips[2].Template.LoadContent() as Border;
+            Check(grips.Length == 3 && Math.Abs(grips[0].Width - 14) < .01 && Math.Abs(grips[1].Width - 14) < .01
+                && Math.Abs(grips[2].Width - 20) < .01 && moveMarker?.Child is TextBlock { Text: "✥" },
+                kind + " uses equal endpoint circles and a move symbol");
+        }
         var shortArrow = new EditMark("arrow", new(50, 50), new(56, 50), "", Colors.Orange, 30);
         Check(!EditDrawing.Outline(shortArrow, 100, 100).FillContains(new Point(59, 50)), "short thick arrow never projects its round shaft beyond the tip");
         var arrows = new VisualEditModel(null, 360, 360);
@@ -206,7 +216,17 @@ internal static class VisualEditorTests
         Check(Canvas.GetLeft(rightText) == 330 && rightText.Width < originalWidth
             && Canvas.GetLeft(rightText) + rightText.Width <= 400 && rightText.PlainText == "たぬき\n狐\nねこ",
             "short multiline text moves right by shrinking unused frame width without changing text");
-        Check(rightText.ResizeHandleOutsideInputForTest, "resize handle stays outside the text input");
+        Check(rightText.ResizeHandleOutsideInputForTest && rightText.ResizeHandlesForTest.Count == 8
+            && rightText.MoveEdgesUseSizeAllForTest, "text frame has eight resize circles and move cursors along its edges");
+        var draggedText = new InlineTextEditor(new Point(230, 155), "", 14, Colors.Black, 1,
+            new Size(400, 300), () => { }, () => { });
+        draggedText.SetBoxFromDrag(new Point(230, 155), new Point(70, 90));
+        Check(Math.Abs(Canvas.GetLeft(draggedText) - 70) < .5 && Math.Abs(Canvas.GetTop(draggedText) - 90) < .5
+            && Math.Abs(draggedText.Width - 160) < .5 && Math.Abs(draggedText.Input.Height - 55) < .5,
+            "dragging either direction creates a text frame within the chosen rectangle");
+        Check(Math.Abs(draggedText.Mark.TextBoxWidth!.Value - 160) < .5
+            && Math.Abs(draggedText.Mark.TextBoxHeight!.Value - 55) < .5,
+            "the drawn text frame size is retained for confirmation");
         rightText.MoveForTest(399, 20);
         Check(EditDrawing.TextShapes(rightText.Mark).All(shape => shape.Geometry.Bounds.Right <= 400),
             "moving to the page edge keeps actual text inside the page");
@@ -217,31 +237,50 @@ internal static class VisualEditorTests
         {
             textHost.Show();
             await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            var topEdge = rightText.MoveEdgesForTest[0];
+            var edgeHit = rightText.InputHitTest(topEdge.TranslatePoint(new Point(topEdge.ActualWidth / 4, topEdge.ActualHeight / 2), rightText));
+            Check(ReferenceEquals(edgeHit, topEdge) || edgeHit is DependencyObject edgeVisual && topEdge.IsAncestorOf(edgeVisual),
+                "the visible text frame edge accepts pointer input for moving");
             var paragraph = (Paragraph)rightText.Input.Document.Blocks.FirstBlock!;
             Check(Math.Abs(paragraph.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward).Y
                 - paragraph.ContentEnd.GetCharacterRect(System.Windows.Documents.LogicalDirection.Backward).Y) < 1,
                 "moving short Japanese text to the right edge does not wrap its first line");
-            Check(rightText.ResizeHandleForTest.PointToScreen(new Point()).Y >= rightText.PointToScreen(new Point(0, rightText.ActualHeight)).Y,
-                "visible resize handle is below the frame without covering text");
-            SavePreview(textHost, folder + "/right-edge-text.png", rightText.ResizeHandleForTest);
+            Check(Math.Abs(rightText.ResizeHandleForTest.PointToScreen(new Point(0, rightText.ResizeHandleForTest.ActualHeight / 2)).Y
+                - rightText.PointToScreen(new Point(0, rightText.ActualHeight)).Y) < 2,
+                "bottom resize circle is centered on the text frame border");
+            SavePreview(textHost, folder + "/right-edge-text.png");
             rightText.MoveForTest(100, 20);
             await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             var firstRect = paragraph.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
             var caretPoint = rightText.Input.TranslatePoint(firstRect.TopLeft, textCanvas);
             Check(Math.Abs(caretPoint.X - rightText.Mark.Start.X) < .5,
                 "committed text starts at the same horizontal position as the editable text");
+            var beforeMove = rightText.Mark;
+            rightText.MoveEdgesForTest[0].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(12, 0)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+            Check(Math.Abs(rightText.Mark.Start.X - beforeMove.Start.X - 12) < .5 && rightText.PlainText == beforeMove.Text,
+                "dragging the frame edge moves the text without changing its content");
+            double beforeWidth = rightText.Width, beforeHeight = rightText.Input.Height;
+            rightText.ResizeHandlesForTest[4].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(18, 10)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+            Check(Math.Abs(rightText.Width - beforeWidth - 18) < .5 && Math.Abs(rightText.Input.Height - beforeHeight - 10) < .5,
+                "dragging the bottom-right circle changes the text frame width and height");
+            EditMark sizedText = rightText.Mark;
+            var reopenedSized = new InlineTextEditor(sizedText.Start, sizedText.Text, sizedText.Size, sizedText.Color, 1,
+                new Size(400, 300), () => { }, () => { }, null, sizedText.TextSegments, sizedText.TextBoxWidth, sizedText.TextBoxHeight);
+            Check(Math.Abs(reopenedSized.Width - rightText.Width) < .5 && Math.Abs(reopenedSized.Input.Height - rightText.Input.Height) < .5,
+                "text frame dimensions survive confirmation and reopening");
             textCanvas.LayoutTransform = new ScaleTransform(2.5, 2.5); rightText.UpdateZoom(2.5);
             await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-            Check(Math.Abs(rightText.ResizeHandleForTest.ActualWidth - 22) < 1,
-                "floating resize handle retains its screen size at increased page zoom");
+            Check(Math.Abs(rightText.ResizeHandleForTest.ActualWidth * 2.5 - 14) < 1,
+                "resize circle retains its screen size at increased page zoom");
         }
         finally { textHost.Close(); }
-        var handles = edgeText.MoveHandleSizeForTest;
         var formatHandle = edgeText.FormatHandleSizeForTest;
         edgeText.UpdateZoom(2.5);
-        Check(edgeText.MoveHandleSizeForTest == handles && edgeText.FormatHandleSizeForTest == formatHandle
-            && Math.Abs(edgeText.ResizeHandleScreenSizeForTest.Width - 22) < .01,
-            "text handles keep readable screen sizes when zoom changes");
+        Check(edgeText.MoveEdgesUseSizeAllForTest && edgeText.FormatHandleSizeForTest == formatHandle
+            && Math.Abs(edgeText.ResizeHandleScreenSizeForTest.Width * 2.5 - 14) < .01,
+            "text frame cursors and resize circles remain usable when zoom changes");
         Check(!preview.ActiveTextEditor!.CanDeleteForTest, "new text has no delete button before it is committed");
         var pendingText = preview.ActiveTextEditor;
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
@@ -251,6 +290,9 @@ internal static class VisualEditorTests
         Check(pendingText!.Input.Height < 50 && ScrollViewer.GetHorizontalScrollBarVisibility(pendingText.Input) == ScrollBarVisibility.Disabled,
             "empty rich text box starts compact without a horizontal scrollbar");
         Check(pendingText!.Ink == Colors.Black && !pendingText.PaletteOpenForTest, "text formatting stays hidden while typing");
+        Check(pendingText.ColorPickerLabelForTest is Border && pendingText.ColorSwatchSizeForTest.Width == 20
+            && pendingText.ColorChoiceCountForTest == 16,
+            "text color button shows a larger swatch without a redundant label and offers more colors");
         pendingText.OpenFormattingForTest();
         Check(pendingText.PaletteOpenForTest, "text formatting opens from its corner button");
         pendingText.SelectFormattingForTest("shippori", 18, true);
