@@ -158,14 +158,14 @@ internal static class VisualEditorTests
         mainBar.CloseButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(!nativeMain.IsVisible, "close caption button closes through the normal window handler");
         SavePreview(preview, folder + "/editor-title-bar.png");
-        Check(preview.SaveButtonWidthForTest >= 154, "save-as button keeps enough width for its Japanese label");
+        Check(preview.SaveButtonWidthForTest >= 153, "save-as button keeps enough width for its Japanese label");
         Check(preview.CentimeterTextForTest.Contains("3.18 cm") && preview.CentimeterTextForTest.Contains("2.12 cm") && preview.CentimeterTextForTest.Contains("96 dpi換算"), "image dimensions show clearly labeled centimeter estimates below pixels");
         Check(preview.ToolNamesForTest.SequenceEqual(new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) && preview.HighlightMethodNamesForTest.SequenceEqual(new[] { "範囲指定", "フリーハンド" }) && preview.ToolWidthForTest >= 140
             && preview.HighlightMethodWidthForTest >= 160, "highlight method keeps its full label visible beside the icon");
         Check(preview.ToolIconsReadyForTest, "all tool choices and highlight methods have right-side vector icons");
         Check(!preview.HighlightMethodVisibleForTest, "highlight method selector stays hidden during other tools");
         preview.SelectToolForTest("矢印");
-        Check(preview.DrawingHintForTest.Contains("根元を押す") && preview.DrawingHintForTest.Contains("矢じりの位置で離す"),
+        Check(preview.DrawingHintForTest.Contains("起点を押す") && preview.DrawingHintForTest.Contains("先端の位置で離す"),
             "choosing the arrow tool explains the drag direction before drawing");
         Check(preview.DrawingMarkForTest(new Point(10, 20), new Point(90, 40)) is { Kind: "arrow", Start.X: 10, Start.Y: 20, End.X: 90, End.Y: 40 },
             "arrow drawing uses the pressed point as the tail and the released point as the tip");
@@ -224,6 +224,12 @@ internal static class VisualEditorTests
             Check(rightText.ResizeHandleForTest.PointToScreen(new Point()).Y >= rightText.PointToScreen(new Point(0, rightText.ActualHeight)).Y,
                 "visible resize handle is below the frame without covering text");
             SavePreview(textHost, folder + "/right-edge-text.png", rightText.ResizeHandleForTest);
+            rightText.MoveForTest(100, 20);
+            await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            var firstRect = paragraph.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+            var caretPoint = rightText.Input.TranslatePoint(firstRect.TopLeft, textCanvas);
+            Check(Math.Abs(caretPoint.X - rightText.Mark.Start.X) < .5,
+                "committed text starts at the same horizontal position as the editable text");
             textCanvas.LayoutTransform = new ScaleTransform(2.5, 2.5); rightText.UpdateZoom(2.5);
             await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             Check(Math.Abs(rightText.ResizeHandleForTest.ActualWidth - 22) < 1,

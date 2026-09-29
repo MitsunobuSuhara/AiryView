@@ -11,6 +11,8 @@ internal sealed class InlineTextEditor : Border
 {
     internal RichTextBox Input { get; }
     private readonly double inset, padding;
+    // RichTextBoxはPagePaddingを0にしても、本文の左に5 DIPの余白を持つ。
+    private const double InputTextLeftInset = 5;
     private readonly Size bounds;
     private double zoom;
     private readonly Popup palette;
@@ -50,7 +52,7 @@ internal sealed class InlineTextEditor : Border
     internal bool ObjectSelected { get; private set; }
     internal void DeleteSelected() { if (ObjectSelected) remove?.Invoke(); }
     internal void DeleteForTest() => deleteButton?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    internal Point TextPosition => new(Canvas.GetLeft(this) + inset + padding, Canvas.GetTop(this) + inset + padding);
+    internal Point TextPosition => new(Canvas.GetLeft(this) + inset + padding + InputTextLeftInset, Canvas.GetTop(this) + inset + padding);
 
     internal InlineTextEditor(Point position, string text, double fontSize, Color ink, double zoom, Size bounds, Action accept, Action cancel, Action? remove = null, TextSegment[]? segments = null)
     {
@@ -158,7 +160,7 @@ internal sealed class InlineTextEditor : Border
         boldPicker.Checked += (_, _) => ChangeBold(); boldPicker.Unchecked += (_, _) => ChangeBold();
         SetAppearance(fontSize, ink); SetFont("MS Gothic", false);
         if (segments is { Length: > 0 }) LoadText(text, segments);
-        double desiredLeft = position.X - inset - padding;
+        double desiredLeft = position.X - inset - padding - InputTextLeftInset;
         double availableAtPosition = bounds.Width - Math.Max(0, desiredLeft);
         if (availableAtPosition >= Math.Min(120 / zoom, bounds.Width)) Width = Math.Min(Width, availableAtPosition);
         MoveTo(desiredLeft, position.Y - inset - padding);
@@ -217,7 +219,7 @@ internal sealed class InlineTextEditor : Border
         double textWidth = EditDrawing.TextShapes(Mark with { Start = new Point(), End = new Point() })
             .Select(shape => shape.Geometry.Bounds.IsEmpty ? 0 : shape.Geometry.Bounds.Right).DefaultIfEmpty(0).Max();
         double minimumWidth = Math.Min(Width, Math.Max(70 / zoom, textWidth + 2 * (inset + padding) + 4 / zoom));
-        double left = Math.Clamp(x, -inset - padding, Math.Max(0, bounds.Width - minimumWidth));
+        double left = Math.Clamp(x, -inset - padding - InputTextLeftInset, Math.Max(0, bounds.Width - minimumWidth));
         Width = Math.Min(Width, bounds.Width - Math.Max(0, left));
         Canvas.SetLeft(this, left);
         Canvas.SetTop(this, Math.Clamp(y, -inset - padding, Math.Max(0, bounds.Height - Input.Height - 2 * (inset + padding)))); RepositionPalette();

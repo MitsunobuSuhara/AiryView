@@ -53,8 +53,8 @@ internal sealed class InlineShapeEditor : Canvas
         bool area = highlight && mark.Kind != "highlight-freehand";
         bool figure = mark.Kind is "rectangle" or "ellipse";
         bool arrow = mark.Kind == "arrow";
-        start = Handle(arrow ? "根元（矢じりのない端）をドラッグ" : highlight || figure ? "角をドラッグして大きさを変更" : "始点をドラッグ", Cursors.Cross);
-        end = Handle(arrow ? "矢じり（先端）をドラッグ" : highlight || figure ? "反対の角をドラッグして大きさを変更" : "終点をドラッグ", Cursors.Cross);
+        start = Handle(arrow ? "起点をドラッグ" : highlight || figure ? "角をドラッグして大きさを変更" : "始点をドラッグ", Cursors.Cross);
+        end = Handle(arrow ? "先端をドラッグ" : highlight || figure ? "反対の角をドラッグして大きさを変更" : "終点をドラッグ", Cursors.Cross);
         move = Handle(arrow ? "矢印全体を移動" : "図形を移動", Cursors.SizeAll);
         if (arrow)
         {
@@ -77,7 +77,7 @@ internal sealed class InlineShapeEditor : Canvas
             button.Click += (_, e) => { e.Handled = true; action(); }; commands.Children.Add(button);
         }
         root.Children.Add(commands);
-        if (arrow) root.Children.Add(new TextBlock { Text = "○ 根元  ──▶  矢じり\n端の丸で長さ・向き、中央の丸で移動", FontSize = 12,
+        if (arrow) root.Children.Add(new TextBlock { Text = "○ 起点  ──▶  先端\n端の丸で長さ・向き、中央の丸で移動", FontSize = 12,
             Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 9) });
         var formats = new StackPanel { Orientation = Orientation.Horizontal };
         formats.Children.Add(new TextBlock { Text = "太さ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });

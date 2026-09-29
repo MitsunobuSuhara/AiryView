@@ -45,9 +45,9 @@ internal sealed class EditSurface : Canvas
         if (PendingMark != null) EditDrawing.DrawMark(dc, PendingMark);
         if (PendingMark is { Kind: "arrow" } arrow)
         {
-            // 描画中だけ根元を示す。保存する矢印には目印を含めない。
+            // 描画中だけ起点を示す。保存する矢印には目印を含めない。
             dc.DrawEllipse(Brushes.Transparent, new Pen(Brushes.DodgerBlue, 1.2 * CropHandleUnit), arrow.Start, 6 * CropHandleUnit, 6 * CropHandleUnit);
-            var label = new FormattedText("根元", CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            var label = new FormattedText("起点", CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
                 new Typeface("Yu Gothic UI"), 11 * CropHandleUnit, Brushes.RoyalBlue, VisualTreeHelper.GetDpi(this).PixelsPerDip);
             var point = new Point(Math.Clamp(arrow.Start.X + 9 * CropHandleUnit, 0, Math.Max(0, Width - label.Width)),
                 Math.Clamp(arrow.Start.Y + 9 * CropHandleUnit, 0, Math.Max(0, Height - label.Height)));
@@ -103,7 +103,7 @@ internal sealed class VisualEditorWindow : Window
     private readonly StackPanel controls = new();
     private readonly EditSurface surface = new() { Focusable = true, ClipToBounds = true };
     private readonly ScrollViewer viewer = new() { Background = new SolidColorBrush(Color.FromRgb(199, 214, 226)), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-    private readonly ComboBox tool = new() { Width = 142, Margin = new Thickness(4), SelectedIndex = 0, ToolTip = "文字：用紙をクリックして入力\n矢印：根元を押し、矢じりの位置までドラッグして離す\n線・四角形・円／楕円：ドラッグして配置\nハイライト：選択後に範囲指定またはフリーハンドを選択\n配置した文字・図形はクリックして再編集" };
+    private readonly ComboBox tool = new() { Width = 142, Margin = new Thickness(4), SelectedIndex = 0, ToolTip = "文字：用紙をクリックして入力\n矢印：起点を押し、先端にしたい位置までドラッグして離す\n線・四角形・円／楕円：ドラッグして配置\nハイライト：選択後に範囲指定またはフリーハンドを選択\n配置した文字・図形はクリックして再編集" };
     private readonly ComboBox highlightMethod = new() { Width = 166, Margin = new Thickness(4), Visibility = Visibility.Collapsed, ToolTip = "ハイライトの方法\n範囲指定：PDFの文字には自動でフィット、画像では四角い範囲\nフリーハンド：描いた軌跡に沿う" };
     private readonly ComboBox color = new() { Width = 80, Margin = new Thickness(4), SelectedIndex = 1 };
     private readonly ComboBox font = new() { Width = 190, Margin = new Thickness(4), ToolTip = "文字のフォント" };
@@ -346,7 +346,7 @@ internal sealed class VisualEditorWindow : Window
         surface.EditingMarkIndex = index; surface.Children.Add(shapeEditor); surface.InvalidateVisual();
         status.Text = mark.Kind.StartsWith("highlight", StringComparison.Ordinal)
             ? "角の四角で範囲、中央の四角で位置を調整。近くのパレットで色を変更できます。ハイライトを選んだ状態でクリックすると再編集できます。"
-            : mark.Kind == "arrow" ? "小さい丸が根元、大きい丸が矢じり。両端の丸で長さ・向き、中央の丸で移動。矢じりは操作中も見えます。"
+            : mark.Kind == "arrow" ? "小さい丸が起点、大きい丸が先端。両端の丸で長さ・向き、中央の丸で移動。先端は操作中も見えます。"
             : "両端の四角で長さ・向きを調整。中央の四角で移動。近くのパレットで色・太さを変更できます。確定後も矢印・線をクリックして修正できます。";
     }
     private int HitShape(Point point)
@@ -457,9 +457,9 @@ internal sealed class VisualEditorWindow : Window
     internal string DrawingHintForTest => drawingHint.Text;
     private void UpdateDrawingHint()
     {
-        drawingHint.Text = ToolName == "矢印" ? "○ 根元を押す → 矢じりの位置で離す"
+        drawingHint.Text = ToolName == "矢印" ? "○ 起点を押す → 先端の位置で離す"
             : ToolName == "文字" ? "文字は用紙をクリックして入力" : "用紙をドラッグして描く";
-        status.Text = ToolName == "矢印" ? "矢じりのない根元を押し、指したい位置までドラッグして離すと、その位置に矢じりができます。"
+        status.Text = ToolName == "矢印" ? "起点を押し、指したい位置までドラッグして離すと、その位置が先端になります。"
             : "文字は用紙をクリックして入力。線・図形・ハイライトはドラッグして描きます。配置後もクリックして修正できます。";
     }
     internal EditMark DrawingMarkForTest(Point start, Point end) => Mark(start, end);
