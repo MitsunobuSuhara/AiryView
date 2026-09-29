@@ -291,10 +291,21 @@ internal static class VisualEditorTests
             "empty rich text box starts compact without a horizontal scrollbar");
         Check(pendingText!.Ink == Colors.Black && !pendingText.PaletteOpenForTest, "text formatting stays hidden while typing");
         Check(pendingText.ColorPickerLabelForTest is Border && pendingText.ColorSwatchSizeForTest.Width == 20
-            && pendingText.ColorChoiceCountForTest == 16,
-            "text color button shows a larger swatch without a redundant label and offers more colors");
+            && pendingText.ColorChoiceCountForTest == 16 && pendingText.ColorPaletteGridForTest,
+            "text color button and four-column palette show swatches without color names");
         pendingText.OpenFormattingForTest();
         Check(pendingText.PaletteOpenForTest, "text formatting opens from its corner button");
+        pendingText.OpenColorPaletteForTest();
+        for (int i = 0; i < 20 && PresentationSource.FromVisual(pendingText.ColorPaletteVisualForTest) == null; i++)
+        {
+            await Task.Delay(50);
+            preview.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+        }
+        await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        Check(pendingText.ColorPaletteVisualForTest.ActualWidth < 220
+            && pendingText.ColorPaletteVisualForTest.ActualHeight < 220,
+            "sixteen colors fit in a compact four-by-four palette");
+        SavePreview(preview, folder + "/text-color-grid.png", pendingText.ColorPaletteVisualForTest);
         pendingText.SelectFormattingForTest("shippori", 18, true);
         Check(pendingText.Mark is { FontId: "shippori", Size: 18, Bold: true }, "popup changes font size and bold without using the top toolbar");
         pendingText.SelectColorForTest(1);
@@ -349,6 +360,7 @@ internal static class VisualEditorTests
         editedModel.Undo(); Check(editedModel.Frame.Marks.Length == 1 && editedModel.Frame.Marks[0].Text == "修正", "undo restores deleted text");
         preview.BeginShape(new("arrow", new(20, 60), new(80, 60), "", Colors.Red, 3));
         var pendingArrow = preview.ActiveShapeEditor; var pendingMark = pendingArrow!.Mark;
+        Check(pendingArrow.ColorPaletteGridForTest, "shape colors use the same swatch-only four-column palette");
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Check(pendingArrow.PaletteOpenForTest, "selected arrow opens a nearby thickness and color palette");
         SavePreview(preview, folder + "/arrow-editing.png");

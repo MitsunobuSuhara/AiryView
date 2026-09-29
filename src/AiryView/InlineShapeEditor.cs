@@ -24,6 +24,7 @@ internal sealed class InlineShapeEditor : Canvas
     private readonly TextBox sizePicker;
     private readonly Button colorPicker;
     private readonly Border colorSwatch;
+    private readonly EditorColorPalette colorPalette;
     private Button deleteButton = null!;
     private readonly Action remove;
     private bool syncing;
@@ -33,6 +34,7 @@ internal sealed class InlineShapeEditor : Canvas
     internal event Action? SaveRequested;
     internal event Action<int>? ZoomRequested;
     internal bool PaletteOpenForTest => palette.IsOpen;
+    internal bool ColorPaletteGridForTest => colorPalette.Columns == 4 && colorPalette.SwatchesOnly;
     internal bool HandlesClearOfPaletteForTest
     {
         get
@@ -90,17 +92,11 @@ internal sealed class InlineShapeEditor : Canvas
         colorPicker = new Button { Content = colorSwatch, ToolTip = highlight ? "ハイライトの色" : "矢印・線の色",
             Width = 46, Height = 34, Background = Brushes.White, BorderBrush = Brushes.LightGray };
         formats.Children.Add(colorPicker); root.Children.Add(formats);
-        var colors = new ContextMenu();
         var choices = highlight
             ? new (string, Color)[] { ("黄", Colors.Yellow), ("ピンク", Colors.HotPink), ("水色", Colors.DeepSkyBlue), ("緑", Colors.ForestGreen), ("橙", Colors.Orange), ("紫", Colors.MediumPurple) }
             : new (string, Color)[] { ("黒", Colors.Black), ("赤", Colors.Red), ("青", Colors.RoyalBlue), ("緑", Colors.ForestGreen), ("橙", Colors.Orange), ("白", Colors.White) };
-        foreach (var (name, color) in choices)
-        {
-            var item = new MenuItem { Header = name, Icon = new Border { Width = 14, Height = 14, Background = new SolidColorBrush(color), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3) } };
-            item.Click += (_, _) => { SetAppearance(Mark.Size, color); AppearanceChanged?.Invoke(); }; colors.Items.Add(item);
-        }
-        colorPicker.ContextMenu = colors;
-        colorPicker.Click += (_, _) => { colors.PlacementTarget = colorPicker; colors.Placement = PlacementMode.Bottom; colors.IsOpen = true; };
+        colorPalette = new EditorColorPalette(colorPicker, choices,
+            selected => { SetAppearance(Mark.Size, selected); AppearanceChanged?.Invoke(); });
         var card = new Border { Child = root, Padding = new Thickness(12), Margin = new Thickness(8), Background = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
             Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 3, Opacity = .18, Color = Colors.Black } };
@@ -125,7 +121,7 @@ internal sealed class InlineShapeEditor : Canvas
     }
     private void HidePalette(object? sender, EventArgs e) => ClosePalette();
     private void ShowPalette(object? sender, EventArgs e) { if (IsLoaded) palette.IsOpen = true; }
-    internal void ClosePalette() { palette.IsOpen = false; if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
+    internal void ClosePalette() { palette.IsOpen = false; colorPalette.Close(); }
     private void RepositionPalette()
     {
         // 画面の切替中はUnloaded前でも表示先が外れるため、座標変換できない。
@@ -137,7 +133,7 @@ internal sealed class InlineShapeEditor : Canvas
     internal void SelectFormattingForTest(double size, int colorIndex)
     {
         sizePicker.Text = size.ToString(CultureInfo.CurrentCulture);
-        ((MenuItem)colorPicker.ContextMenu!.Items[colorIndex]).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        colorPalette.SelectForTest(colorIndex);
     }
     private Thumb Handle(string tip, Cursor cursor)
     {

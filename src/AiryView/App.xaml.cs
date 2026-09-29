@@ -50,6 +50,14 @@ public partial class App : System.Windows.Application
             catch (Exception ex) { File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
             return;
         }
+        if (e.Args.Contains("--capture-themes"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            try { await ThemePreviewCapture.CaptureBothAsync(); Shutdown(0); }
+            catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
         if (e.Args.Contains("--launch-benchmark"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

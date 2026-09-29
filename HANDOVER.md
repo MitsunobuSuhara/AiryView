@@ -2,6 +2,8 @@
 
 更新日: 2026-09-29
 
+最新作業：2.1.32で文字・図形の色選択を色見本だけの4列パレットに統一。文字色16色は4×4、図形・ハイライトは複数列に収め、色名はツールチップで確認する。Release編集テストと生成画像artifacts/editor-tests/text-color-grid.pngで見た目を確認し、.NET同梱publish成功。Program Filesへの導入は起動中のAiryViewがファイルを使用していたため待機中。利用者へ保存・終了を依頼した。別作業のscripts/create-airyview-story.py差分は保持し対象外。
+
 最新作業：2.1.31で文字ツールの新規配置時、用紙上のドラッグ範囲を文字枠の初期位置・幅・高さに反映。逆方向のドラッグにも対応し、クリックだけの入力は維持。操作案内とREADMEを更新。枠寸法の編集テスト、.NET同梱publish成功。Program Filesへ導入、インストーラー終了0、導入版2.1.31、ビルド／導入DLL SHA256一致 CD24DB97FCD9251A70F9B23FA42DC0FC6E6EA799223BC5B60EC1E5396CB8D2C5、導入版編集テスト終了0。通常操作での利用者目視は未確認。@@@時にartifacts/editor-tests/text-handle-layout.txtを削除。過去の操作枠診断用の一時出力で、成功済み編集テストに置き換わり再生成可能。用途未確認のtmp/pdfsと別作業のscripts/create-airyview-story.py差分は保持し対象外。
 
 最新作業：2.1.30で文字色ボタンの「色」を削除し、色見本を14pxから20px、ボタンを34px高に拡大。文字色の選択肢を従来の6色を維持して16色に増やし、メニューの見本と行の高さも拡大。Release編集テスト、.NET同梱publish成功。Program Filesへ導入、インストーラー終了0、導入版2.1.30、ビルド／導入DLL SHA256一致 F422208CE8877CCA29758EB5242AA87F6C816FFEA31505E7626DFDC73FE4077F、導入版編集テスト終了0。通常操作での利用者目視は未確認。別作業のscripts/create-airyview-story.py差分は保持し対象外。

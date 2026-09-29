@@ -1,5 +1,5 @@
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Inches, Mm, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_SECTION
 from docx.oxml import OxmlElement
@@ -14,7 +14,7 @@ DOCX = OUT / "AiryView_AIとの会話から生まれたPDFアプリ.docx"
 
 doc = Document()
 sec = doc.sections[0]
-sec.page_width, sec.page_height = Inches(8.5), Inches(11)
+sec.page_width, sec.page_height = Mm(210), Mm(297)
 sec.top_margin, sec.bottom_margin = Inches(.72), Inches(.72)
 sec.left_margin, sec.right_margin = Inches(.85), Inches(.85)
 
@@ -52,9 +52,12 @@ def conversation(who, text, dark=False):
     table = doc.add_table(rows=1, cols=2)
     table.autofit = False
     table.columns[0].width = Inches(1.15)
-    table.columns[1].width = Inches(5.8)
-    left, right = table.rows[0].cells
-    left.width, right.width = Inches(1.15), Inches(5.8)
+    table.columns[1].width = Inches(5.4)
+    row = table.rows[0]
+    tr_pr = row._tr.get_or_add_trPr()
+    tr_pr.append(OxmlElement("w:cantSplit"))
+    left, right = row.cells
+    left.width, right.width = Inches(1.15), Inches(5.4)
     shade(left, "202020" if dark else "E7E9EC")
     shade(right, "F3F4F6" if dark else "FFFFFF")
     for c in (left,right): margins(c); c.vertical_alignment=WD_CELL_VERTICAL_ALIGNMENT.CENTER
@@ -147,4 +150,12 @@ for section in doc.sections:
 doc.core_properties.title = "AIとの会話から生まれた仕事のアプリ"
 doc.core_properties.subject = "AiryView制作記録"
 doc.save(DOCX)
+
+check = Document(DOCX)
+for checked_section in check.sections:
+    width_mm = checked_section.page_width.mm
+    height_mm = checked_section.page_height.mm
+    if abs(width_mm - 210) > 0.1 or abs(height_mm - 297) > 0.1:
+        raise RuntimeError(f"A4ではないページ設定です: {width_mm:.1f} x {height_mm:.1f} mm")
+
 print(DOCX)

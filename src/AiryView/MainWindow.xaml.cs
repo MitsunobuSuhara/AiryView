@@ -152,12 +152,18 @@ public partial class MainWindow : Window
         InitializeComponent();
         WindowTitleBar.Install(this, (DockPanel)Content);
         suppressWelcomeUntilOpen = !showWelcome;
+        Action<AppTheme> themeHandler = theme =>
+        {
+            UpdateWelcome();
+            ThemeManager.UpdateWindowDarkAttribute(this, theme == AppTheme.Modern);
+        };
+        ThemeManager.ThemeChanged += themeHandler;
+        Closed += (_, _) => { windowClosed = true; ThemeManager.ThemeChanged -= themeHandler; svgTimer.Stop(); zoomTimer.Stop(); ++svgRequestVersion; ++renderVersion; };
         UpdateWelcome();
-        Closed += (_, _) => { windowClosed = true; svgTimer.Stop(); zoomTimer.Stop(); ++svgRequestVersion; ++renderVersion; };
         Loaded += (_, _) => { CompleteInitialImageFit(); QueueInitialDisplay(); };
         StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) QueueInitialDisplay(); };
         ImageViewer.SizeChanged += (_, _) => { if (CurrentImage is { InitialFitComplete: false }) QueueInitialDisplay(); };
-        SourceInitialized += (_, _) => ApplyDarkTitleBar();
+        SourceInitialized += (_, _) => ThemeManager.UpdateWindowDarkAttribute(this, ThemeManager.CurrentTheme == AppTheme.Modern);
         WindowPreferences.Restore(this);
         svgTimer.Tick += async (_, _) => await RefreshSvgAsync();
         zoomTimer.Tick += async (_, _) => { zoomTimer.Stop(); await RenderVisible(); };
@@ -175,11 +181,19 @@ public partial class MainWindow : Window
     {
         bool show = !suppressWelcomeUntilOpen && fileOpenRequests == 0 && Tabs.Items.Count == 0;
         Welcome.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (show && WelcomeCrane.Source == null)
+        if (show)
         {
-            // ファイル起動では使わない案内用の画像も読み込まない。
-            var icon = BitmapDecoder.Create(new Uri("pack://application:,,,/Assets/icon.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-            WelcomeCrane.Source = icon.Frames.OrderByDescending(frame => frame.PixelWidth).First();
+            if (WelcomeCrane.Source == null)
+            {
+                // ファイル起動では使わない案内用の画像も読み込まない。
+                var icon = BitmapDecoder.Create(new Uri("pack://application:,,,/Assets/icon.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                var frame = icon.Frames.OrderByDescending(frame => frame.PixelWidth).First();
+                WelcomeCrane.Source = frame;
+                ModernWelcomeCrane.Source = frame;
+            }
+            bool isModern = ThemeManager.CurrentTheme == AppTheme.Modern;
+            ClassicWelcomeView.Visibility = isModern ? Visibility.Collapsed : Visibility.Visible;
+            ModernWelcomeView.Visibility = isModern ? Visibility.Visible : Visibility.Collapsed;
         }
     }
     [DllImport("dwmapi.dll")]
@@ -1266,7 +1280,7 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.1.31\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、上下のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\n画像編集：回転・切り抜き・サイズ変更・文字／矢印／線\nPDF書き込み：文字／矢印／線。追加文字は図形として別名保存\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.1.32\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、上下のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\n画像編集：回転・切り抜き・サイズ変更・文字／矢印／線\nPDF書き込み：文字／矢印／線。追加文字は図形として別名保存\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)
@@ -1367,6 +1381,7 @@ public partial class MainWindow : Window
     {
         if (Keyboard.Modifiers == ModifierKeys.Alt && (e.Key == Key.Z || e.SystemKey == Key.Z)) { ToggleWrap(s, e); e.Handled = true; return; }
         if (e.Key == Key.F3 && CurrentText != null) { if (TextSearchBar.Visibility != Visibility.Visible) ShowTextSearch(); else MoveTextMatch(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1); e.Handled = true; return; }
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.D) { ThemeManager.Toggle(this); e.Handled = true; return; }
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.M) { MarkdownModeClick(s, e); e.Handled = true; return; }
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.T) { RestoreClosedTab(s, e); e.Handled = true; return; }
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.S)

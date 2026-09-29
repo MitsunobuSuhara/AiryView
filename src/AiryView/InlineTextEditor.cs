@@ -26,6 +26,7 @@ internal sealed class InlineTextEditor : Border
     private readonly ToggleButton boldPicker;
     private readonly Button colorPicker;
     private readonly Border colorSwatch;
+    private readonly EditorColorPalette colorPalette;
     private readonly Button? deleteButton;
     private readonly Action? remove;
     private readonly Dictionary<string, string> fontIds = new(StringComparer.OrdinalIgnoreCase);
@@ -50,7 +51,10 @@ internal sealed class InlineTextEditor : Border
     internal FrameworkElement ResizeHandleForTest => resizeGrips[4];
     internal IReadOnlyList<Thumb> ResizeHandlesForTest => resizeGrips;
     internal IReadOnlyList<Thumb> MoveEdgesForTest => moveEdges;
-    internal int ColorChoiceCountForTest => colorPicker.ContextMenu?.Items.Count ?? 0;
+    internal int ColorChoiceCountForTest => colorPalette.ChoiceCount;
+    internal bool ColorPaletteGridForTest => colorPalette.Columns == 4 && colorPalette.SwatchesOnly;
+    internal FrameworkElement ColorPaletteVisualForTest => colorPalette.Visual;
+    internal void OpenColorPaletteForTest() => colorPalette.OpenForTest();
     internal Size ColorSwatchSizeForTest => new(colorSwatch.Width, colorSwatch.Height);
     internal object? ColorPickerLabelForTest => colorPicker.Content;
     internal void MoveForTest(double x, double y) => MoveTo(x, y);
@@ -126,20 +130,12 @@ internal sealed class InlineTextEditor : Border
             BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3) };
         colorPicker = ActionButton("", "文字の色"); colorPicker.Content = colorSwatch; colorPicker.MinWidth = 44; colorPicker.Height = 34;
         formats.Children.Add(fontPicker); formats.Children.Add(FontSizeControls.Wrap(sizePicker)); formats.Children.Add(boldPicker); formats.Children.Add(colorPicker);
-        var colors = new ContextMenu();
-        foreach (var (name, color) in new (string, Color)[] { ("黒", Colors.Black), ("赤", Colors.Red),
+        colorPalette = new EditorColorPalette(colorPicker, new (string, Color)[] { ("黒", Colors.Black), ("赤", Colors.Red),
             ("青", Colors.RoyalBlue), ("緑", Colors.ForestGreen), ("橙", Colors.Orange), ("白", Colors.White),
             ("濃い灰", Colors.DimGray), ("灰", Colors.Gray), ("濃い赤", Colors.DarkRed),
             ("黄", Colors.Gold), ("黄緑", Colors.YellowGreen), ("水色", Colors.DeepSkyBlue),
             ("紺", Colors.Navy), ("紫", Colors.MediumPurple), ("桃", Colors.HotPink),
-            ("青緑", Color.FromRgb(20, 80, 106)) })
-        {
-            var item = new MenuItem { Header = name, MinHeight = 30, Icon = new Border { Width = 20, Height = 20,
-                Background = new SolidColorBrush(color), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3) } };
-            item.Click += (_, _) => { SetColor(color); AppearanceChanged?.Invoke(); }; colors.Items.Add(item);
-        }
-        colorPicker.ContextMenu = colors;
-        colorPicker.Click += (_, _) => { colors.PlacementTarget = colorPicker; colors.Placement = PlacementMode.Bottom; colors.IsOpen = true; };
+            ("青緑", Color.FromRgb(20, 80, 106)) }, color => { SetColor(color); AppearanceChanged?.Invoke(); });
         var card = new Border { Child = root, Padding = new Thickness(12), Margin = new Thickness(8), Background = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
             Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 3, Opacity = .18, Color = Colors.Black } };
@@ -187,9 +183,9 @@ internal sealed class InlineTextEditor : Border
         if (open) RepositionPalette();
     }
     internal void OpenFormattingForTest() => SetPaletteOpen(true);
-    private void HidePalette(object? sender, EventArgs e) { palette.IsOpen = false; formatPopup.IsOpen = false; }
+    private void HidePalette(object? sender, EventArgs e) { palette.IsOpen = false; formatPopup.IsOpen = false; colorPalette.Close(); }
     private void ShowPalette(object? sender, EventArgs e) { if (!IsLoaded) return; formatPopup.IsOpen = true; if (formattingRequested) palette.IsOpen = true; }
-    internal void ClosePalette() { SetPaletteOpen(false); formatPopup.IsOpen = false; if (colorPicker.ContextMenu != null) colorPicker.ContextMenu.IsOpen = false; }
+    internal void ClosePalette() { SetPaletteOpen(false); formatPopup.IsOpen = false; colorPalette.Close(); }
     internal void UpdateZoom(double value)
     {
         zoom = value; lastEditorSize = default;
@@ -364,7 +360,7 @@ internal sealed class InlineTextEditor : Border
         syncing = true; fontPicker.SelectedItem = EditorFonts.Choices.FirstOrDefault(item => item.Id == id) ?? EditorFonts.Choices[0]; boldPicker.IsChecked = bold; syncing = false;
     }
     internal void SelectFormattingForTest(string id, double size, bool bold) { fontPicker.SelectedItem = EditorFonts.Choices.First(item => item.Id == id); sizePicker.Text = size.ToString(CultureInfo.CurrentCulture); boldPicker.IsChecked = bold; }
-    internal void SelectColorForTest(int index) => ((MenuItem)colorPicker.ContextMenu!.Items[index]).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    internal void SelectColorForTest(int index) => colorPalette.SelectForTest(index);
     private void LoadText(string text, TextSegment[]? segments)
     {
         Input.Document.Blocks.Clear();
