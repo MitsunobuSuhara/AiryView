@@ -13,6 +13,7 @@ namespace AiryView;
 
 public partial class MainWindow : Window
 {
+    private readonly ToolTipGuard toolTips;
     private sealed class TabState(PdfDocument document)
     {
         public PdfDocument Document = document;
@@ -150,6 +151,7 @@ public partial class MainWindow : Window
     internal MainWindow(bool showWelcome)
     {
         InitializeComponent();
+        toolTips = new ToolTipGuard(this);
         WindowTitleBar.Install(this, (DockPanel)Content);
         suppressWelcomeUntilOpen = !showWelcome;
         Action<AppTheme> themeHandler = theme =>
@@ -496,7 +498,7 @@ public partial class MainWindow : Window
     private void OpenClick(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.OpenFileDialog { Filter = TextFileFormats.OpenFilter, Multiselect = true };
-        if (dialog.ShowDialog(this) == true) OpenPaths(dialog.FileNames);
+        if (toolTips.RunModal(() => dialog.ShowDialog(this)) == true) OpenPaths(dialog.FileNames);
     }
     private async void FilesDropped(object sender, DragEventArgs e)
     {
