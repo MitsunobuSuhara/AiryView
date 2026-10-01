@@ -21,6 +21,14 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args.Contains("--text-file-test"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            try { await TextFileTests.RunAsync(); Shutdown(0); }
+            catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/text-file-test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
         if (e.Args.Contains("--dialog-test"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

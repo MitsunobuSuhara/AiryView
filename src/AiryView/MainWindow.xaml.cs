@@ -317,13 +317,14 @@ public partial class MainWindow : Window
                     continue;
                 }
                 string extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
-                if (new[] { ".md", ".markdown", ".txt" }.Contains(extension))
+                if (TextFileFormats.Supports(path))
                 {
                     var loaded = await ReadTextAsync(path);
                     string text = loaded.Text;
-                    // TXTはTextBoxで表示するため、印刷用の全行FlowDocumentを先に作らない。
-                    var document = extension == ".txt" ? LightweightTextRenderer.BuildPlain("") : LightweightTextRenderer.Build(text);
-                    var reader = new TextTabState(path, document, text, loaded.Encoding, extension == ".txt") { FileHash = loaded.Hash };
+                    // 文章・データはTextBoxで表示し、Markdownだけ整形表示を先に作る。
+                    bool editable = !TextFileFormats.IsMarkdown(path);
+                    var document = editable ? LightweightTextRenderer.BuildPlain("") : LightweightTextRenderer.Build(text);
+                    var reader = new TextTabState(path, document, text, loaded.Encoding, editable) { FileHash = loaded.Hash };
                     var readerTab = CreateTab(System.IO.Path.GetFileName(path), path, reader);
                     opening = true; Tabs.Items.Add(readerTab); Tabs.SelectedItem = readerTab; opening = false;
                     await RenderCurrent(); AddRecentFile(path); continue;
@@ -494,17 +495,18 @@ public partial class MainWindow : Window
     }
     private void OpenClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "対応ファイル|*.pdf;*.md;*.markdown;*.txt;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.gif;*.ico;*.webp;*.svg|PDF|*.pdf|文章|*.md;*.markdown;*.txt|画像|*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.gif;*.ico;*.webp;*.svg", Multiselect = true };
+        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = TextFileFormats.OpenFilter, Multiselect = true };
         if (dialog.ShowDialog(this) == true) OpenPaths(dialog.FileNames);
     }
-    private void FilesDropped(object sender, DragEventArgs e)
+    private async void FilesDropped(object sender, DragEventArgs e)
     {
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] files) OpenPaths(files.Where(x => new[] { ".pdf", ".md", ".markdown", ".txt" }.Contains(System.IO.Path.GetExtension(x), StringComparer.OrdinalIgnoreCase) || ImageExtensions.Contains(System.IO.Path.GetExtension(x), StringComparer.OrdinalIgnoreCase)));
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] files) await OpenDroppedPathsAsync(files);
     }
     private async void TabChanged(object sender, SelectionChangedEventArgs e)
     {
         if (e.Source == Tabs && !opening) await RenderCurrent();
     }
+    internal Task OpenDroppedPathsAsync(IEnumerable<string> files) => OpenPathsAsync(files.Where(x => TextFileFormats.Supports(x) || string.Equals(System.IO.Path.GetExtension(x), ".pdf", StringComparison.OrdinalIgnoreCase) || ImageExtensions.Contains(System.IO.Path.GetExtension(x), StringComparer.OrdinalIgnoreCase)));
     private async Task RenderCurrent()
     {
         SaveReadingPosition();
@@ -1098,9 +1100,9 @@ public partial class MainWindow : Window
         string destination = state.Path;
         if (saveAs || string.IsNullOrEmpty(destination))
         {
-            string filter = state.IsMarkdown ? "Markdown|*.md;*.markdown" : "テキストファイル|*.txt";
-            string defaultName = state.IsMarkdown ? "無題.md" : "無題.txt";
-            var dialog = new Microsoft.Win32.SaveFileDialog { Filter = filter, FileName = string.IsNullOrEmpty(destination) ? defaultName : System.IO.Path.GetFileName(destination), OverwritePrompt = true };
+            var format = TextFileFormats.SaveFormat(state.Path);
+            string defaultName = "無題" + format.Extension;
+            var dialog = new Microsoft.Win32.SaveFileDialog { Filter = format.Filter, DefaultExt = format.Extension, AddExtension = true, FileName = string.IsNullOrEmpty(destination) ? defaultName : System.IO.Path.GetFileName(destination), OverwritePrompt = true };
             if (dialog.ShowDialog(this) != true) return false;
             destination = dialog.FileName;
         }

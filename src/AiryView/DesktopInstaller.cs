@@ -86,7 +86,7 @@ public static class DesktopInstaller
         }
     }    private static void RegisterApplication(string exe, string folder)
     {
-        string[] documentExtensions = [".pdf", ".md", ".markdown", ".txt"];
+        string[] documentExtensions = [".pdf", .. TextFileFormats.Extensions];
         string[] imageExtensions = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".ico", ".webp", ".svg"];
         string[] supportedExtensions = [.. documentExtensions, .. imageExtensions];
         string[] retiredExtensions = [".html", ".htm"];
@@ -132,7 +132,7 @@ public static class DesktopInstaller
         RemoveLegacyRegistrations(supportedExtensions);
         using var uninstall = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\AiryView");
         uninstall.SetValue("DisplayName", "AiryView");
-        uninstall.SetValue("DisplayVersion", "2.1.32");
+        uninstall.SetValue("DisplayVersion", "2.1.47");
         uninstall.SetValue("Publisher", "AiryView");
         uninstall.SetValue("InstallLocation", folder);
         uninstall.SetValue("DisplayIcon", IconLocation(exe));
@@ -174,7 +174,7 @@ public static class DesktopInstaller
         Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Applications\AiryView.exe", false);
         Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\AiryView.Document", false);
         Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\AiryView.Image", false);
-        foreach (string extension in new[] { ".pdf", ".md", ".markdown", ".txt", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".ico", ".webp", ".svg" })
+        foreach (string extension in new[] { ".pdf", ".md", ".markdown", ".txt", ".json", ".csv", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".ico", ".webp", ".svg" })
             Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + ProgId(extension), false);
         Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\AiryView\Capabilities", false);
         using (var registered = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\RegisteredApplications", true)) registered?.DeleteValue("AiryView", false);
