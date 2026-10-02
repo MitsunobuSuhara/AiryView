@@ -10,7 +10,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>AiryView</AssemblyName>
     <ApplicationIcon>../../assets/icons/AiryView.ico</ApplicationIcon>
-    <Version>2.1.48</Version>
+    <Version>2.1.49</Version>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
@@ -20,6 +20,9 @@
     <Content Include="../../assets/fonts/**/*" Link="Fonts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../artifacts/helper/airyview-pdf-helper/**/*" Link="Helper/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../assets/icons/AiryView.ico" Link="AiryView.ico" CopyToOutputDirectory="PreserveNewest" />
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="9.0.20" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />
     <PackageReference Include="Svg.Skia" Version="5.2.3" />
     <Resource Include="../../assets/icons/AiryView.ico" Link="Assets/icon.ico" />
   </ItemGroup>

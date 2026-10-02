@@ -36,6 +36,8 @@ public partial class MainWindow : Window
         public bool CanEdit => Editable || IsMarkdown;
         public bool ShowEditor => Editable || IsMarkdown && SourceMode;
         public bool Dirty;
+        public string? TokenText, TokenSelection, TokenErrorText;
+        public int? TokenCount, SelectedTokenCount;
         public double Zoom = 1;
         public byte[]? FileHash;
     }
@@ -151,6 +153,7 @@ public partial class MainWindow : Window
     internal MainWindow(bool showWelcome)
     {
         InitializeComponent();
+        InitializeTokenCounter();
         toolTips = new ToolTipGuard(this);
         WindowTitleBar.Install(this, (DockPanel)Content);
         suppressWelcomeUntilOpen = !showWelcome;
@@ -844,6 +847,7 @@ public partial class MainWindow : Window
         if (CurrentText is not { IsMarkdown: true, SourceMode: false } state) return;
         TextSelectionInfo.Text = $"プレビュー / Preview  •  MD  •  {EncodingLabel(state.Encoding)}";
         TextSelectionBadge.ToolTip = "整形表示中 / Preview mode。上の </> または Ctrl+Shift+M でソース編集 / Sourceへ切り替えます。";
+        UpdateTokenStatus(state);
         TextSelectionBadge.Visibility = Visibility.Visible;
     }
     private void ZoomInputGotFocus(object s, KeyboardFocusChangedEventArgs e) => ZoomText.SelectAll();
@@ -1169,6 +1173,7 @@ public partial class MainWindow : Window
             TextSelectionInfo.Text = $"行 {line + 1} / Ln {line + 1}  •  列 {column + 1} / Col {column + 1}  •  {EncodingLabel(state.Encoding)}  •  {LineEndingLabel(state.LiveText)}{source}  •  折返し {(state.Wrap ? "ON" : "OFF")} / Wrap {(state.Wrap ? "ON" : "OFF")}";
             TextSelectionBadge.ToolTip = "現在の行・列・文字コード / Current line, column, and encoding";
         }
+        UpdateTokenStatus(state);
         TextSelectionBadge.Visibility = Visibility.Visible;
     }
     private static string LineEndingLabel(string text) => text.Contains("\r\n", StringComparison.Ordinal) ? "改行形式 CRLF / EOL CRLF" : text.Contains('\n') ? "改行形式 LF / EOL LF" : "改行なし / No EOL";
