@@ -845,8 +845,8 @@ public partial class MainWindow : Window
     private void UpdateMarkdownPreviewStatus()
     {
         if (CurrentText is not { IsMarkdown: true, SourceMode: false } state) return;
-        TextSelectionInfo.Text = $"プレビュー / Preview  •  MD  •  {EncodingLabel(state.Encoding)}";
-        TextSelectionBadge.ToolTip = "整形表示中 / Preview mode。上の </> または Ctrl+Shift+M でソース編集 / Sourceへ切り替えます。";
+        TextSelectionInfo.Text = $"プレビュー  •  MD  •  {EncodingLabel(state.Encoding)}";
+        TextSelectionBadge.ToolTip = "整形表示中。上の </> または Ctrl+Shift+M でソース編集 / Sourceへ切り替えます。";
         UpdateTokenStatus(state);
         TextSelectionBadge.Visibility = Visibility.Visible;
     }
@@ -1001,7 +1001,7 @@ public partial class MainWindow : Window
         }
         Status.Text = $"{selectedPdfText.Length}文字を選択  ·  Ctrl＋Cでコピー";
 
-        TextSelectionInfo.Text = $"{selectedPdfText.Length}文字選択 / {selectedPdfText.Length} chars selected  •  コピー / Ctrl+C";
+        TextSelectionInfo.Text = $"{selectedPdfText.Length}文字選択  •  コピー（Ctrl+C）";
         TextSelectionBadge.ToolTip = "選択したPDF文字をコピー / Copy selected PDF text（Ctrl+C）";
         TextSelectionBadge.Visibility = Visibility.Visible;
     }
@@ -1159,9 +1159,9 @@ public partial class MainWindow : Window
         if (TextEditor.SelectionLength > 0)
         {
             var count = CountCharacterWidths(TextEditor.SelectedText);
-            string source = state.IsMarkdown ? "  •  ソース / Source" : "";
-            TextSelectionInfo.Text = $"選択 {count.Total}字 / {count.Total} chars  •  全角 {count.FullWidth} / Full {count.FullWidth}  •  半角 {count.HalfWidth} / Half {count.HalfWidth}  •  幅 {count.HalfWidthEquivalent} / Width {count.HalfWidthEquivalent}{source}  •  折返し {(state.Wrap ? "ON" : "OFF")} / Wrap {(state.Wrap ? "ON" : "OFF")}";
-            TextSelectionBadge.ToolTip = "選択範囲の文字数 / Selected text counts。幅 / Widthは全角を2、半角を1として数えます。";
+            string source = state.IsMarkdown ? "  •  ソース" : "";
+            TextSelectionInfo.Text = $"選択 {count.Total}字  •  全角 {count.FullWidth}  •  半角 {count.HalfWidth}  •  幅 {count.HalfWidthEquivalent}{source}  •  折り返し{(state.Wrap ? "あり" : "なし")}";
+            TextSelectionBadge.ToolTip = "選択範囲の文字数。幅は全角を2、半角を1として数えます。";
         }
         else
         {
@@ -1169,14 +1169,14 @@ public partial class MainWindow : Window
             int line = TextEditor.CaretIndex == 0 ? 0 : Math.Max(0, TextEditor.GetLineIndexFromCharacterIndex(TextEditor.CaretIndex));
             int lineStart = TextEditor.CaretIndex == 0 ? 0 : TextEditor.GetCharacterIndexFromLineIndex(line);
             int column = Math.Max(0, TextEditor.CaretIndex - lineStart);
-            string source = state.IsMarkdown ? "  •  ソース / Source" : "";
-            TextSelectionInfo.Text = $"行 {line + 1} / Ln {line + 1}  •  列 {column + 1} / Col {column + 1}  •  {EncodingLabel(state.Encoding)}  •  {LineEndingLabel(state.LiveText)}{source}  •  折返し {(state.Wrap ? "ON" : "OFF")} / Wrap {(state.Wrap ? "ON" : "OFF")}";
-            TextSelectionBadge.ToolTip = "現在の行・列・文字コード / Current line, column, and encoding";
+            string source = state.IsMarkdown ? "  •  ソース" : "";
+            TextSelectionInfo.Text = $"行 {line + 1}  •  列 {column + 1}  •  {EncodingLabel(state.Encoding)}  •  {LineEndingLabel(state.LiveText)}{source}  •  折り返し{(state.Wrap ? "あり" : "なし")}";
+            TextSelectionBadge.ToolTip = "現在の行・列・文字コード";
         }
         UpdateTokenStatus(state);
         TextSelectionBadge.Visibility = Visibility.Visible;
     }
-    private static string LineEndingLabel(string text) => text.Contains("\r\n", StringComparison.Ordinal) ? "改行形式 CRLF / EOL CRLF" : text.Contains('\n') ? "改行形式 LF / EOL LF" : "改行なし / No EOL";
+    private static string LineEndingLabel(string text) => text.Contains("\r\n", StringComparison.Ordinal) ? "改行形式 CRLF" : text.Contains('\n') ? "改行形式 LF" : "改行なし";
     private static string EncodingLabel(Encoding encoding) => encoding.CodePage switch
     {
         65001 => "UTF-8",
