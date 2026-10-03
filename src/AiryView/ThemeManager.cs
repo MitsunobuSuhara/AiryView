@@ -29,21 +29,21 @@ public static class ThemeManager
             SetBrush(res, "AiryInk", Color.FromRgb(242, 239, 235));
             SetBrush(res, "AiryInkSecondary", Color.FromRgb(188, 182, 177));
             SetBrush(res, "AiryStroke", Color.FromRgb(94, 87, 85));
-            SetBrush(res, "AiryStrokeHover", Color.FromRgb(151, 169, 156));
-            SetBrush(res, "AiryAccent", Color.FromRgb(166, 182, 170));
+            SetBrush(res, "AiryStrokeHover", Color.FromRgb(90, 137, 157));
+            SetBrush(res, "AiryAccent", Color.FromRgb(117, 168, 187));
             SetBrush(res, "AiryButtonBackground", Color.FromRgb(67, 63, 63));
             SetBrush(res, "AiryButtonBackgroundHover", Color.FromRgb(82, 76, 73));
             SetBrush(res, "AiryTabInactiveBackground", Color.FromRgb(52, 48, 48));
             SetBrush(res, "AiryTabInactiveBorder", Color.FromRgb(84, 78, 76));
             SetBrush(res, "AiryTabActiveBackground", Color.FromRgb(73, 68, 65));
-            SetBrush(res, "AiryTabActiveBorder", Color.FromRgb(151, 169, 156));
+            SetBrush(res, "AiryTabActiveBorder", Color.FromRgb(90, 137, 157));
             SetBrush(res, "AiryPopupBackground", Color.FromRgb(63, 59, 59));
             SetBrush(res, "AiryIconStroke", Color.FromRgb(224, 218, 211));
             SetBrush(res, "AiryEditorBackground", Color.FromRgb(57, 53, 53)); // #393535
             SetBrush(res, "AiryEditorForeground", Color.FromRgb(242, 239, 235));
             SetBrush(res, "AiryEditCanvas", Color.FromRgb(57, 53, 53)); // #393535
 
-            SetBrush(res, "AiryEditorSelection", Color.FromRgb(89, 111, 101));
+            SetBrush(res, "AiryEditorSelection", Color.FromRgb(53, 94, 111));
             res["AiryEditorSelectionOpacity"] = .85;
 
             var titleGradient = new LinearGradientBrush(new GradientStopCollection
