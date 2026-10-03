@@ -21,6 +21,14 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args.Contains("--page-preview-test"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            try { await PagePreviewTests.RunAsync(e.Args.Last()); Shutdown(0); }
+            catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/page-preview-test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
         if (e.Args.Contains("--token-test"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

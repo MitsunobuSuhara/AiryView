@@ -13,6 +13,9 @@ namespace AiryView;
 
 public partial class MainWindow : Window
 {
+    private int previewRequest;
+    private readonly Dictionary<TabState, Dictionary<int, BitmapSource>> previewCache = [];
+    private readonly Dictionary<int, Button> previewButtons = [];
     private readonly ToolTipGuard toolTips;
     private sealed class TabState(PdfDocument document)
     {
@@ -542,6 +545,9 @@ public partial class MainWindow : Window
         ImageViewer.Visibility = image != null ? Visibility.Visible : Visibility.Collapsed;
         DocumentToolbar.Visibility = Visibility.Visible;
         PageControls.Visibility = state != null ? Visibility.Visible : Visibility.Collapsed;
+        PagePreviewButton.Visibility = state != null && state.Document.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (state == null || state.Document.Count <= 1) ClosePagePreview();
+        else if (PagePreviewSidebar.Visibility == Visibility.Visible) _ = ShowPagePreviewAsync(state);
         RotationControls.Visibility = state != null || image != null ? Visibility.Visible : Visibility.Collapsed;
         FitWidthButton.Visibility = state != null || image != null ? Visibility.Visible : Visibility.Collapsed;
         PrintButton.Visibility = state != null || textDocument?.Editable == true ? Visibility.Visible : Visibility.Collapsed;
@@ -637,6 +643,11 @@ public partial class MainWindow : Window
         if (Current is not { } state) return;
         Size mm = state.Document.SizeMm(state.Page);
         PageNumber.Text = (state.Page + 1).ToString(); PageCount.Text = $"/ {state.Document.Count}";
+        foreach (var pair in previewButtons)
+        {
+            pair.Value.SetResourceReference(Control.BorderBrushProperty, pair.Key == state.Page ? "AiryAccent" : "AiryStroke");
+            pair.Value.BorderThickness = new Thickness(pair.Key == state.Page ? 2 : 1);
+        }
         if (!ZoomText.IsKeyboardFocusWithin) ZoomText.Text = (state.Zoom * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         Status.Text = $"{System.IO.Path.GetFileName(state.Document.Path)}  ·  {mm.Width:F1} × {mm.Height:F1} mm  ·  印刷倍率 {state.Document.PrintPercent:0.##}%";
 
@@ -708,6 +719,64 @@ public partial class MainWindow : Window
             UpdatePageInfo();
         });
     }
+    private void PagePreviewClick(object sender, RoutedEventArgs e)
+    {
+        if (PagePreviewSidebar.Visibility == Visibility.Visible) { ClosePagePreview(); return; }
+        if (Current is { Document.Count: > 1 } state)
+        {
+            PagePreviewSidebar.Visibility = Visibility.Visible;
+            Viewer.Margin = new Thickness(PagePreviewSidebar.Width, 0, 0, 0);
+            _ = ShowPagePreviewAsync(state);
+        }
+    }
+    private void ClosePagePreview()
+    {
+        previewRequest++;
+        PagePreviewSidebar.Visibility = Visibility.Collapsed;
+        Viewer.Margin = new Thickness(0);
+        PagePreviewItems.Children.Clear();
+        previewButtons.Clear();
+    }
+    private async Task ShowPagePreviewAsync(TabState state)
+    {
+        int request = ++previewRequest;
+        PagePreviewItems.Children.Clear();
+        previewButtons.Clear();
+        if (!previewCache.TryGetValue(state, out var cached)) previewCache[state] = cached = [];
+        for (int index = 0; index < state.Document.Count; index++)
+        {
+            if (request != previewRequest || Current != state || PagePreviewSidebar.Visibility != Visibility.Visible) return;
+            int target = index;
+            if (!cached.TryGetValue(index, out var thumbnail))
+            {
+                try
+                {
+                    Size mm = state.Document.SizeMm(index);
+                    double scale = Math.Min(760 / mm.Width, 1000 / mm.Height);
+                    thumbnail = await Task.Run(() => state.Document.Render(target,
+                        Math.Max(1, (int)Math.Round(mm.Width * scale)), Math.Max(1, (int)Math.Round(mm.Height * scale))));
+                    if (request != previewRequest || Current != state || PagePreviewSidebar.Visibility != Visibility.Visible) return;
+                    cached[index] = thumbnail;
+                }
+                catch (ObjectDisposedException) { return; }
+                catch (Exception ex) { if (request == previewRequest) Error(ex); return; }
+            }
+            var content = new StackPanel();
+            content.Children.Add(CreatePagePreviewImage(thumbnail, index));
+            content.Children.Add(new TextBlock { Text = (index + 1).ToString(), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 0) });
+            var button = new Button { Content = content, Margin = new Thickness(3, 5, 3, 10), Padding = new Thickness(4), ToolTip = null };
+            System.Windows.Automation.AutomationProperties.SetName(button, $"{index + 1} ページへ移動");
+            button.Click += (_, _) => GoPage(target);
+            previewButtons[target] = button;
+            PagePreviewItems.Children.Add(button);
+            if (target == state.Page) UpdatePageInfo();
+        }
+    }
+    internal bool PagePreviewVisibleForTest => PagePreviewSidebar.Visibility == Visibility.Visible;
+    internal int PagePreviewCountForTest => PagePreviewItems.Children.Count;
+    internal void TogglePagePreviewForTest() => PagePreviewClick(this, new RoutedEventArgs());
+    internal int CurrentPdfPageForTest => Current?.Page ?? -1;
+    internal void ClickPagePreviewForTest(int page) => previewButtons[page].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private void PreviousClick(object s, RoutedEventArgs e) => GoPage((Current?.Page ?? 0) - 1);
     private void NextClick(object s, RoutedEventArgs e) => GoPage((Current?.Page ?? 0) + 1);
     private void PageNumberKeyDown(object s, KeyEventArgs e) { if (e.Key == Key.Enter && int.TryParse(PageNumber.Text, out int n)) GoPage(n - 1); }
