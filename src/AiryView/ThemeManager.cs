@@ -23,9 +23,9 @@ public static class ThemeManager
 
         if (theme == AppTheme.Modern)
         {
-            SetBrush(res, "AirySurface", Color.FromRgb(15, 23, 42));             // #0F172A
+            SetBrush(res, "AirySurface", Color.FromRgb(57, 53, 53)); // #393535
             SetBrush(res, "AirySurfaceSecondary", Color.FromRgb(30, 41, 59));    // #1E293B
-            SetBrush(res, "AiryCanvas", Color.FromRgb(11, 15, 25));              // #0B0F19
+            SetBrush(res, "AiryCanvas", Color.FromRgb(57, 53, 53)); // #393535
             SetBrush(res, "AiryInk", Color.FromRgb(248, 250, 252));              // #F8FAFC
             SetBrush(res, "AiryInkSecondary", Color.FromRgb(148, 163, 184));     // #94A3B8
             SetBrush(res, "AiryStroke", Color.FromRgb(51, 65, 85));              // #334155
@@ -39,8 +39,9 @@ public static class ThemeManager
             SetBrush(res, "AiryTabActiveBorder", Color.FromRgb(56, 189, 248));   // #38BDF8
             SetBrush(res, "AiryPopupBackground", Color.FromRgb(24, 33, 47));     // #18212F
             SetBrush(res, "AiryIconStroke", Color.FromRgb(226, 232, 240));       // #E2E8F0
-            SetBrush(res, "AiryEditorBackground", Color.FromRgb(15, 23, 42));     // #0F172A
+            SetBrush(res, "AiryEditorBackground", Color.FromRgb(57, 53, 53)); // #393535
             SetBrush(res, "AiryEditorForeground", Color.FromRgb(241, 245, 249)); // #F1F5F9
+            SetBrush(res, "AiryEditCanvas", Color.FromRgb(57, 53, 53)); // #393535
 
             var titleGradient = new LinearGradientBrush(new GradientStopCollection
             {
