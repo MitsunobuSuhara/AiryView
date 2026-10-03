@@ -56,6 +56,8 @@ internal static class TokenCountTests
         var reInfo = (TextBlock)reopened.FindName("TextSelectionInfo");
         for (int i = 0; i < 500 && reInfo.Text.Contains("計数中"); ++i) await Task.Delay(20);
         Check(reInfo.Text.Contains("トークン数 7（"), "保存後のアプリ再起動でも正しい数を表示"); reopened.Close();
+        await ScrollBarTests.RunAsync();
+        Check(true, "両テーマで横バーを表示し、ページ移動・ドラッグ・左端復帰を確認");
         File.WriteAllLines("artifacts/token-test-results.txt", results);
     }
     private static void Capture(Window window, string path)

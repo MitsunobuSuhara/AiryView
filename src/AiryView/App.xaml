@@ -178,5 +178,46 @@
       </Setter>
     </Style>
     <Style TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="Foreground" Value="{DynamicResource AiryInk}"/></Style>
+    <Style x:Key="AiryScrollPage" TargetType="RepeatButton">
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="AiryScrollArrow" TargetType="RepeatButton">
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Foreground" Value="{DynamicResource AiryInkSecondary}"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton">
+        <Border x:Name="Chrome" Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+        <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AiryButtonBackgroundHover}"/></Trigger></ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ScrollBar">
+      <Style.Triggers>
+        <Trigger Property="Orientation" Value="Horizontal">
+          <Setter Property="Height" Value="22"/>
+          <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+            <Grid Background="{DynamicResource AiryTabInactiveBackground}">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/><ColumnDefinition Width="22"/></Grid.ColumnDefinitions>
+              <RepeatButton Style="{StaticResource AiryScrollArrow}" Content="‹" FontSize="20" Command="ScrollBar.LineLeftCommand"/>
+              <Track x:Name="PART_Track" Grid.Column="1" Orientation="Horizontal" IsDirectionReversed="False">
+                <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource AiryScrollPage}" Command="ScrollBar.PageLeftCommand"/></Track.DecreaseRepeatButton>
+                <Track.Thumb><Thumb MinWidth="24">
+                  <Thumb.Template><ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Grip" Margin="2,3" CornerRadius="4" Background="{DynamicResource AiryInkSecondary}"/>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource AiryAccent}"/></Trigger>
+                      <Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource AiryAccent}"/></Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate></Thumb.Template>
+                </Thumb></Track.Thumb>
+                <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource AiryScrollPage}" Command="ScrollBar.PageRightCommand"/></Track.IncreaseRepeatButton>
+              </Track>
+              <RepeatButton Grid.Column="2" Style="{StaticResource AiryScrollArrow}" Content="›" FontSize="20" Command="ScrollBar.LineRightCommand"/>
+            </Grid>
+            <ControlTemplate.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger></ControlTemplate.Triggers>
+          </ControlTemplate></Setter.Value></Setter>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
   </Application.Resources>
 </Application>
