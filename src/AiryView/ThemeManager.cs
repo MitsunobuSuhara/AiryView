@@ -24,30 +24,33 @@ public static class ThemeManager
         if (theme == AppTheme.Modern)
         {
             SetBrush(res, "AirySurface", Color.FromRgb(57, 53, 53)); // #393535
-            SetBrush(res, "AirySurfaceSecondary", Color.FromRgb(30, 41, 59));    // #1E293B
+            SetBrush(res, "AirySurfaceSecondary", Color.FromRgb(67, 63, 63));
             SetBrush(res, "AiryCanvas", Color.FromRgb(57, 53, 53)); // #393535
-            SetBrush(res, "AiryInk", Color.FromRgb(248, 250, 252));              // #F8FAFC
-            SetBrush(res, "AiryInkSecondary", Color.FromRgb(148, 163, 184));     // #94A3B8
-            SetBrush(res, "AiryStroke", Color.FromRgb(51, 65, 85));              // #334155
-            SetBrush(res, "AiryStrokeHover", Color.FromRgb(56, 189, 248));       // #38BDF8
-            SetBrush(res, "AiryAccent", Color.FromRgb(56, 189, 248));            // #38BDF8
-            SetBrush(res, "AiryButtonBackground", Color.FromRgb(30, 41, 59));    // #1E293B
-            SetBrush(res, "AiryButtonBackgroundHover", Color.FromRgb(51, 65, 85));// #334155
-            SetBrush(res, "AiryTabInactiveBackground", Color.FromRgb(20, 30, 48));// #141E30
-            SetBrush(res, "AiryTabInactiveBorder", Color.FromRgb(41, 53, 72));   // #293548
-            SetBrush(res, "AiryTabActiveBackground", Color.FromRgb(30, 41, 59)); // #1E293B
-            SetBrush(res, "AiryTabActiveBorder", Color.FromRgb(56, 189, 248));   // #38BDF8
-            SetBrush(res, "AiryPopupBackground", Color.FromRgb(24, 33, 47));     // #18212F
-            SetBrush(res, "AiryIconStroke", Color.FromRgb(226, 232, 240));       // #E2E8F0
+            SetBrush(res, "AiryInk", Color.FromRgb(242, 239, 235));
+            SetBrush(res, "AiryInkSecondary", Color.FromRgb(188, 182, 177));
+            SetBrush(res, "AiryStroke", Color.FromRgb(94, 87, 85));
+            SetBrush(res, "AiryStrokeHover", Color.FromRgb(151, 169, 156));
+            SetBrush(res, "AiryAccent", Color.FromRgb(166, 182, 170));
+            SetBrush(res, "AiryButtonBackground", Color.FromRgb(67, 63, 63));
+            SetBrush(res, "AiryButtonBackgroundHover", Color.FromRgb(82, 76, 73));
+            SetBrush(res, "AiryTabInactiveBackground", Color.FromRgb(52, 48, 48));
+            SetBrush(res, "AiryTabInactiveBorder", Color.FromRgb(84, 78, 76));
+            SetBrush(res, "AiryTabActiveBackground", Color.FromRgb(73, 68, 65));
+            SetBrush(res, "AiryTabActiveBorder", Color.FromRgb(151, 169, 156));
+            SetBrush(res, "AiryPopupBackground", Color.FromRgb(63, 59, 59));
+            SetBrush(res, "AiryIconStroke", Color.FromRgb(224, 218, 211));
             SetBrush(res, "AiryEditorBackground", Color.FromRgb(57, 53, 53)); // #393535
-            SetBrush(res, "AiryEditorForeground", Color.FromRgb(241, 245, 249)); // #F1F5F9
+            SetBrush(res, "AiryEditorForeground", Color.FromRgb(242, 239, 235));
             SetBrush(res, "AiryEditCanvas", Color.FromRgb(57, 53, 53)); // #393535
+
+            SetBrush(res, "AiryEditorSelection", Color.FromRgb(89, 111, 101));
+            res["AiryEditorSelectionOpacity"] = .85;
 
             var titleGradient = new LinearGradientBrush(new GradientStopCollection
             {
-                new(Color.FromRgb(10, 15, 29), 0),
-                new(Color.FromRgb(22, 32, 53), .50),
-                new(Color.FromRgb(15, 23, 42), 1)
+                new(Color.FromRgb(44, 41, 41), 0),
+                new(Color.FromRgb(52, 48, 48), .50),
+                new(Color.FromRgb(44, 41, 41), 1)
             }, new Point(0, 0), new Point(1, 0));
             titleGradient.Freeze();
             res["AiryTitleBarBackground"] = titleGradient;
@@ -72,6 +75,9 @@ public static class ThemeManager
             SetBrush(res, "AiryIconStroke", Color.FromRgb(25, 36, 50));          // #192432
             SetBrush(res, "AiryEditorBackground", Color.FromRgb(255, 255, 255));
             SetBrush(res, "AiryEditorForeground", Color.FromRgb(36, 50, 68));
+
+            SetBrush(res, "AiryEditorSelection", Color.FromRgb(191, 219, 254));
+            res["AiryEditorSelectionOpacity"] = .6;
 
             var titleGradient = new LinearGradientBrush(new GradientStopCollection
             {

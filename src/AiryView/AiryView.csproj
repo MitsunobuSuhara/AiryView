@@ -10,10 +10,12 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>AiryView</AssemblyName>
     <ApplicationIcon>../../assets/icons/AiryView.ico</ApplicationIcon>
-    <Version>2.1.50</Version>
+    <Version>2.1.51</Version>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
+    <!-- 選択背景を文字の背後に描き、選択中も文字色を維持する。 -->
+    <RuntimeHostConfigurationOption Include="Switch.System.Windows.Controls.Text.UseAdornerForTextboxSelectionRendering" Value="false" />
     <PackageReference Include="bblanchon.PDFium.Win32" Version="155.0.8044" />
     <Content Include="../../THIRD-PARTY/**/*" Link="THIRD-PARTY/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../assets/checks/*.pdf" Link="Samples/print-check.pdf" CopyToOutputDirectory="PreserveNewest" />
