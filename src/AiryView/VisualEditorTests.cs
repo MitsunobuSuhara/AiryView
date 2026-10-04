@@ -113,6 +113,17 @@ internal static class VisualEditorTests
                 && Math.Abs(grips[2].Width - 20) < .01 && moveMarker?.Child is TextBlock { Text: "✥" },
                 kind + " uses equal endpoint circles and a move symbol");
         }
+        var circle = new InlineShapeEditor(new("ellipse", new(20, 30), new(140, 90), "", Colors.Black, 2), 1, new Size(200, 120), () => { }, () => { }, () => { });
+        circle.SetCircleForTest(true);
+        Check(new Rect(circle.Mark.Start, circle.Mark.End).Size == new Size(60, 60), "circle option converts ellipse without enlarging its bounds");
+        Check(circle.Mark.Start == new Point(50, 30), "circle conversion preserves center");
+        circle.MoveEndpoint(false, new Vector(150, 10));
+        Rect resizedCircle = new(circle.Mark.Start, circle.Mark.End);
+        Check(resizedCircle.Width == resizedCircle.Height && resizedCircle.Bottom <= 120 && resizedCircle.Right <= 200, "circle resize remains round inside page bounds");
+        circle.MoveEndpoint(true, new Vector(-150, -50));
+        Check(new Rect(circle.Mark.Start, circle.Mark.End).Width == new Rect(circle.Mark.Start, circle.Mark.End).Height, "opposite circle corner also maintains equal dimensions");
+        circle.SetCircleForTest(false); circle.MoveEndpoint(false, new Vector(-10, 0));
+        Check(new Rect(circle.Mark.Start, circle.Mark.End).Width != new Rect(circle.Mark.Start, circle.Mark.End).Height, "unchecked circle allows ellipse resizing");
         var shortArrow = new EditMark("arrow", new(50, 50), new(56, 50), "", Colors.Orange, 30);
         Check(!EditDrawing.Outline(shortArrow, 100, 100).FillContains(new Point(59, 50)), "short thick arrow never projects its round shaft beyond the tip");
         var arrows = new VisualEditModel(null, 360, 360);

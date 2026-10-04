@@ -47,6 +47,24 @@ internal sealed class InlineShapeEditor : Canvas
     }
     internal void DeleteForTest() => DeleteSelected();
     internal void DeleteSelected() => remove();
+    private CheckBox? circleToggle;
+    internal void SetCircleForTest(bool enabled) { if (circleToggle != null) circleToggle.IsChecked = enabled; }
+    private void MakeCircle()
+    {
+        Rect rect = new(Mark.Start, Mark.End);
+        double diameter = Math.Min(rect.Width, rect.Height);
+        Point center = rect.TopLeft + new Vector(rect.Width / 2, rect.Height / 2);
+        Mark = Mark with { Start = center - new Vector(diameter / 2, diameter / 2), End = center + new Vector(diameter / 2, diameter / 2) };
+        Refresh();
+    }
+    private Point CircleCorner(Point anchor, Point target)
+    {
+        double dx = target.X - anchor.X, dy = target.Y - anchor.Y;
+        double sx = dx < 0 ? -1 : 1, sy = dy < 0 ? -1 : 1;
+        double diameter = Math.Min(Math.Max(Math.Abs(dx), Math.Abs(dy)),
+            Math.Min(sx < 0 ? anchor.X : Width - anchor.X, sy < 0 ? anchor.Y : Height - anchor.Y));
+        return anchor + new Vector(sx * diameter, sy * diameter);
+    }
     private double unit;
     internal InlineShapeEditor(EditMark mark, double zoom, Size bounds, Action accept, Action cancel, Action remove, string sizeUnit = "pt")
     {
@@ -73,6 +91,14 @@ internal sealed class InlineShapeEditor : Canvas
         var root = new StackPanel(); root.Children.Add(shortcutHint);
         var commands = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 9) };
         commands.Children.Add(new TextBlock { Text = highlight ? "ハイライト" : mark.Kind == "arrow" ? "矢印" : mark.Kind == "rectangle" ? "四角形" : mark.Kind == "ellipse" ? "円・楕円" : "線", Width = 70, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.SlateGray });
+        if (mark.Kind == "ellipse")
+        {
+            circleToggle = new CheckBox { Content = "真円", VerticalAlignment = VerticalAlignment.Center,
+                IsChecked = Math.Abs(Math.Abs(mark.End.X - mark.Start.X) - Math.Abs(mark.End.Y - mark.Start.Y)) < .01,
+                ToolTip = "縦横を同じ大きさにして、真円を保つ" };
+            circleToggle.Checked += (_, _) => MakeCircle();
+            commands.Children.Add(circleToggle);
+        }
         root.Children.Add(commands);
         if (arrow) root.Children.Add(new TextBlock { Text = "○ 起点  ──▶  先端\n端の丸で長さ・向き、中央の移動マークで移動", FontSize = 12,
             Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 9) });
@@ -176,6 +202,10 @@ internal sealed class InlineShapeEditor : Canvas
     {
         Point startPoint = first ? Clamp(Mark.Start + delta) : Mark.Start;
         Point endPoint = first ? Mark.End : Clamp(Mark.End + delta);
+        if (circleToggle?.IsChecked == true)
+        {
+            if (first) startPoint = CircleCorner(endPoint, startPoint); else endPoint = CircleCorner(startPoint, endPoint);
+        }
         if (Mark.StrokePoints != null || Mark.HighlightBoxes != null)
         {
             Rect old = new(Mark.Start, Mark.End), next = new(startPoint, endPoint);
