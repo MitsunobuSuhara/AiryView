@@ -154,7 +154,9 @@ internal sealed class VisualEditorWindow : Window
         FontFamily = new FontFamily("Yu Gothic UI"); FontSize = 14; Background = new SolidColorBrush(Color.FromRgb(231, 240, 245));
         var root = new DockPanel(); Content = root;
         WindowTitleBar.Install(this, root);
-        controls.Background = new SolidColorBrush(Color.FromRgb(231, 240, 245));
+        SetResourceReference(BackgroundProperty, "AiryEditSurface");
+        controls.SetResourceReference(Panel.BackgroundProperty, "AiryEditSurface");
+        viewer.SetResourceReference(Control.BackgroundProperty, "AiryEditCanvas");
         DockPanel.SetDock(controls, Dock.Top); root.Children.Add(controls);
         DockPanel.SetDock(status, Dock.Bottom); root.Children.Add(status);
         viewer.Content = new Border { Child = surface, Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };

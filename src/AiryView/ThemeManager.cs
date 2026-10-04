@@ -41,7 +41,8 @@ public static class ThemeManager
             SetBrush(res, "AiryIconStroke", Color.FromRgb(224, 218, 211));
             SetBrush(res, "AiryEditorBackground", Color.FromRgb(57, 53, 53)); // #393535
             SetBrush(res, "AiryEditorForeground", Color.FromRgb(242, 239, 235));
-            SetBrush(res, "AiryEditCanvas", Color.FromRgb(57, 53, 53)); // #393535
+            SetBrush(res, "AiryEditCanvas", Color.FromRgb(39, 56, 63)); // #27383F
+            SetBrush(res, "AiryEditSurface", Color.FromRgb(53, 73, 82)); // #354952
 
             SetBrush(res, "AiryEditorSelection", Color.FromRgb(53, 94, 111));
             res["AiryEditorSelectionOpacity"] = .85;
@@ -77,6 +78,8 @@ public static class ThemeManager
             SetBrush(res, "AiryEditorForeground", Color.FromRgb(36, 50, 68));
 
             SetBrush(res, "AiryEditorSelection", Color.FromRgb(191, 219, 254));
+            SetBrush(res, "AiryEditSurface", Color.FromRgb(231, 240, 245));
+            SetBrush(res, "AiryEditCanvas", Color.FromRgb(199, 214, 226));
             res["AiryEditorSelectionOpacity"] = .6;
 
             var titleGradient = new LinearGradientBrush(new GradientStopCollection
