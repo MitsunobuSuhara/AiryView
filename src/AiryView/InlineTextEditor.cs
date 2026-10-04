@@ -18,6 +18,7 @@ internal sealed class InlineTextEditor : Border
     private readonly Popup palette;
     private readonly Popup formatPopup;
     private readonly Canvas handleLayer;
+    private readonly TextBlock shortcutHint;
     private readonly Button formatHandle;
     private readonly Thumb[] moveEdges;
     private readonly Thumb[] resizeGrips;
@@ -27,7 +28,7 @@ internal sealed class InlineTextEditor : Border
     private readonly Button colorPicker;
     private readonly Border colorSwatch;
     private readonly EditorColorPalette colorPalette;
-    private readonly Button? deleteButton;
+
     private readonly Action? remove;
     private readonly Dictionary<string, string> fontIds = new(StringComparer.OrdinalIgnoreCase);
     private bool syncing;
@@ -43,7 +44,7 @@ internal sealed class InlineTextEditor : Border
     internal Color Ink { get; private set; }
     internal string FontId { get; private set; } = "MS Gothic";
     internal bool PaletteOpenForTest => palette.IsOpen;
-    internal bool CanDeleteForTest => deleteButton != null;
+    internal bool CanDeleteForTest => remove != null;
     internal bool MoveEdgesUseSizeAllForTest => moveEdges.Length == 4 && moveEdges.All(edge => edge.Cursor == Cursors.SizeAll);
     internal Size FormatHandleSizeForTest => new(formatHandle.Width, formatHandle.Height);
     internal Size ResizeHandleScreenSizeForTest => new(resizeGrips[4].Width, resizeGrips[4].Height);
@@ -72,7 +73,7 @@ internal sealed class InlineTextEditor : Border
     }
     internal bool ObjectSelected { get; private set; }
     internal void DeleteSelected() { if (ObjectSelected) remove?.Invoke(); }
-    internal void DeleteForTest() => deleteButton?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    internal void DeleteForTest() { ObjectSelected = true; DeleteSelected(); }
     internal Point TextPosition => new(Canvas.GetLeft(this) + inset + padding + InputTextLeftInset, Canvas.GetTop(this) + inset + padding);
 
     internal InlineTextEditor(Point position, string text, double fontSize, Color ink, double zoom, Size bounds, Action accept, Action cancel, Action? remove = null, TextSegment[]? segments = null, double? boxWidth = null, double? boxHeight = null)
@@ -106,22 +107,16 @@ internal sealed class InlineTextEditor : Border
         foreach (Thumb grip in resizeGrips) handleLayer.Children.Add(grip);
         handleLayer.SizeChanged += (_, _) => PositionHandles();
         var content = new Grid { ClipToBounds = false };
-        content.Children.Add(Input); content.Children.Add(handleLayer); Child = content;
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        shortcutHint = new TextBlock { Text = remove == null ? "Ctrl+Enterで確定" : "Ctrl+Enterで確定  ·  Deleteで削除（枠選択時）",
+            FontSize = 10 / zoom, Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140)), Margin = new Thickness(0, 3 / zoom, 0, 0), IsHitTestVisible = false };
+        Grid.SetRow(shortcutHint, 1); Grid.SetRowSpan(handleLayer, 2);
+        content.Children.Add(Input); content.Children.Add(shortcutHint); content.Children.Add(handleLayer); Child = content;
         formatPopup = new Popup { Child = formatHandle, PlacementTarget = this, Placement = PlacementMode.Bottom,
             VerticalOffset = 11, AllowsTransparency = true, StaysOpen = true };
 
         var root = new StackPanel();
-        var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 9) }; root.Children.Add(heading);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal }; DockPanel.SetDock(actions, Dock.Right); heading.Children.Add(actions);
-        var done = ActionButton("確定", "確定 / Ctrl+Enter"); done.Background = new SolidColorBrush(Color.FromRgb(37, 99, 235)); done.Foreground = Brushes.White; done.BorderBrush = done.Background;
-        done.Click += (_, _) => accept(); actions.Children.Add(done);
-        var dismiss = ActionButton("×", "入力を取り消す / Esc"); dismiss.Click += (_, _) => cancel(); actions.Children.Add(dismiss);
-        if (remove != null)
-        {
-            deleteButton = ActionButton("削除", "確定済みの文字を削除（元に戻せます）");
-            deleteButton.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
-            deleteButton.Click += (_, _) => remove(); actions.Children.Add(deleteButton);
-        }
         var formats = new StackPanel { Orientation = Orientation.Horizontal }; root.Children.Add(formats);
         fontPicker = new ComboBox { ItemsSource = EditorFonts.Choices, SelectedIndex = 0, Width = 190, Height = 30, Margin = new Thickness(0, 0, 7, 0), ToolTip = "フォント" };
         sizePicker = new TextBox { Width = 54, Height = 30, Padding = new Thickness(5, 2, 5, 2), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "文字サイズ", Margin = new Thickness(0, 0, 7, 0) };
@@ -189,6 +184,7 @@ internal sealed class InlineTextEditor : Border
     internal void UpdateZoom(double value)
     {
         zoom = value; lastEditorSize = default;
+        shortcutHint.FontSize = 10 / zoom; shortcutHint.Margin = new Thickness(0, 3 / zoom, 0, 0);
         foreach (Thumb grip in resizeGrips) grip.Template = ResizeGripTemplate();
         PositionHandles(); RepositionPalette();
     }

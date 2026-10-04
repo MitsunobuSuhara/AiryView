@@ -25,7 +25,7 @@ internal sealed class InlineShapeEditor : Canvas
     private readonly Button colorPicker;
     private readonly Border colorSwatch;
     private readonly EditorColorPalette colorPalette;
-    private Button deleteButton = null!;
+    private readonly TextBlock shortcutHint;
     private readonly Action remove;
     private bool syncing;
     private Window? owner;
@@ -45,12 +45,14 @@ internal sealed class InlineShapeEditor : Canvas
             return !panel.IntersectsWith(ScreenRect(start)) && !panel.IntersectsWith(ScreenRect(end));
         }
     }
-    internal void DeleteForTest() => deleteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    internal void DeleteForTest() => DeleteSelected();
     internal void DeleteSelected() => remove();
     private double unit;
     internal InlineShapeEditor(EditMark mark, double zoom, Size bounds, Action accept, Action cancel, Action remove, string sizeUnit = "pt")
     {
         Mark = mark; Width = bounds.Width; Height = bounds.Height; unit = 1 / zoom; this.remove = remove;
+        shortcutHint = new TextBlock { Text = "Ctrl+Enterで確定  ·  Deleteで削除", IsHitTestVisible = false, Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140)) };
+        Children.Add(shortcutHint);
         bool highlight = mark.Kind.StartsWith("highlight", StringComparison.Ordinal);
         bool area = highlight && mark.Kind != "highlight-freehand";
         bool figure = mark.Kind is "rectangle" or "ellipse";
@@ -71,13 +73,6 @@ internal sealed class InlineShapeEditor : Canvas
         var root = new StackPanel();
         var commands = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 9) };
         commands.Children.Add(new TextBlock { Text = highlight ? "ハイライト" : mark.Kind == "arrow" ? "矢印" : mark.Kind == "rectangle" ? "四角形" : mark.Kind == "ellipse" ? "円・楕円" : "線", Width = 70, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.SlateGray });
-        foreach (var (label, action) in new (string, Action)[] { ("確定", accept), ("取消", cancel), ("削除", remove) })
-        {
-            var button = new Button { Content = label, FontSize = 12, Padding = new Thickness(9, 4, 9, 4), Margin = new Thickness(3, 0, 0, 0), Background = Brushes.White, BorderBrush = Brushes.LightGray };
-            if (label == "確定") { button.Background = new SolidColorBrush(Color.FromRgb(37, 99, 235)); button.Foreground = Brushes.White; button.BorderBrush = button.Background; }
-            if (label == "削除") deleteButton = button;
-            button.Click += (_, e) => { e.Handled = true; action(); }; commands.Children.Add(button);
-        }
         root.Children.Add(commands);
         if (arrow) root.Children.Add(new TextBlock { Text = "○ 起点  ──▶  先端\n端の丸で長さ・向き、中央の移動マークで移動", FontSize = 12,
             Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 9) });
@@ -204,6 +199,9 @@ internal sealed class InlineShapeEditor : Canvas
     }
     private void Refresh()
     {
+        shortcutHint.FontSize = 10 * unit;
+        SetLeft(shortcutHint, Math.Max(0, Math.Min(Mark.Start.X, Mark.End.X)));
+        SetTop(shortcutHint, Math.Min(Height - 14 * unit, Math.Max(Mark.Start.Y, Mark.End.Y) + 10 * unit));
         Point middle = Mark.Start + (Mark.End - Mark.Start) * .5;
         Place(start, Mark.Start); Place(end, Mark.End); Place(move, middle);
         palette.PlacementTarget = Mark.Start.Y >= Mark.End.Y ? start : end;
