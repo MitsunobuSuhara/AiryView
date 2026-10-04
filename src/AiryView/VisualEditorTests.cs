@@ -97,6 +97,7 @@ internal static class VisualEditorTests
                 CheckArrowTipVisible(editor, "arrow tip remains visible after moving and resizing in direction " + Array.IndexOf(arrowCases, arrow));
                 editor.SetAppearance(12, Colors.Black); editor.UpdateZoom(2.5);
                 await arrowHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Check(editor.ShortcutHintInPaletteForTest, "shape shortcut hint stays inside the palette at zoom");
                 Check(Math.Abs(editor.TipHandleSizeForTest.Width * 2.5 - 14) < .01, "arrow tip handle matches the other endpoint at zoom");
                 CheckArrowTipVisible(editor, "thick arrow tip remains above handles after zoom in direction " + Array.IndexOf(arrowCases, arrow));
             }
@@ -363,7 +364,8 @@ internal static class VisualEditorTests
         Check(pendingArrow.ColorPaletteGridForTest, "shape colors use the same swatch-only four-column palette");
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Check(pendingArrow.PaletteOpenForTest, "selected arrow opens a nearby thickness and color palette");
-        SavePreview(preview, folder + "/arrow-editing.png");
+        Check(pendingArrow.ShortcutHintInPaletteForTest, "shortcut hint belongs to the open shape palette");
+        SavePreview(preview, folder + "/arrow-editing.png", pendingArrow.PaletteForTest);
         pendingArrow.SelectFormattingForTest(7, 4);
         Check(pendingArrow.Mark is { Size: 7 } && pendingArrow.Mark.Color == Colors.Orange && pendingArrow.Mark.Start == pendingMark.Start && pendingArrow.Mark.End == pendingMark.End, "arrow popup changes appearance without moving endpoints");
         pendingMark = pendingArrow.Mark;

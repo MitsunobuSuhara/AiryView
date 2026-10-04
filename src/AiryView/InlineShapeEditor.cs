@@ -52,7 +52,7 @@ internal sealed class InlineShapeEditor : Canvas
     {
         Mark = mark; Width = bounds.Width; Height = bounds.Height; unit = 1 / zoom; this.remove = remove;
         shortcutHint = new TextBlock { Text = "Ctrl+Enterで確定  ·  Deleteで削除", IsHitTestVisible = false, Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140)) };
-        Children.Add(shortcutHint);
+        shortcutHint.FontSize = 12; shortcutHint.Margin = new Thickness(0, 0, 0, 8);
         bool highlight = mark.Kind.StartsWith("highlight", StringComparison.Ordinal);
         bool area = highlight && mark.Kind != "highlight-freehand";
         bool figure = mark.Kind is "rectangle" or "ellipse";
@@ -70,7 +70,7 @@ internal sealed class InlineShapeEditor : Canvas
         start.DragDelta += (_, e) => { MoveEndpoint(true, new Vector(e.HorizontalChange, e.VerticalChange)); e.Handled = true; };
         end.DragDelta += (_, e) => { MoveEndpoint(false, new Vector(e.HorizontalChange, e.VerticalChange)); e.Handled = true; };
         move.DragDelta += (_, e) => { MoveBy(new Vector(e.HorizontalChange, e.VerticalChange)); e.Handled = true; };
-        var root = new StackPanel();
+        var root = new StackPanel(); root.Children.Add(shortcutHint);
         var commands = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 9) };
         commands.Children.Add(new TextBlock { Text = highlight ? "ハイライト" : mark.Kind == "arrow" ? "矢印" : mark.Kind == "rectangle" ? "四角形" : mark.Kind == "ellipse" ? "円・楕円" : "線", Width = 70, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.SlateGray });
         root.Children.Add(commands);
@@ -168,6 +168,8 @@ internal sealed class InlineShapeEditor : Canvas
         }
     }
     internal void UpdateZoom(double zoom) { unit = 1 / zoom; UpdateHandleSizes(); Refresh(); }
+    internal FrameworkElement PaletteForTest => (FrameworkElement)palette.Child;
+    internal bool ShortcutHintInPaletteForTest => shortcutHint.Parent is StackPanel && shortcutHint.FontSize == 12;
     internal Size TipHandleSizeForTest => new(end.Width, end.Height);
     private Point Clamp(Point point) => new(Math.Clamp(point.X, 0, Width), Math.Clamp(point.Y, 0, Height));
     internal void MoveEndpoint(bool first, Vector delta)
@@ -199,9 +201,6 @@ internal sealed class InlineShapeEditor : Canvas
     }
     private void Refresh()
     {
-        shortcutHint.FontSize = 10 * unit;
-        SetLeft(shortcutHint, Math.Max(0, Math.Min(Mark.Start.X, Mark.End.X)));
-        SetTop(shortcutHint, Math.Min(Height - 14 * unit, Math.Max(Mark.Start.Y, Mark.End.Y) + 10 * unit));
         Point middle = Mark.Start + (Mark.End - Mark.Start) * .5;
         Place(start, Mark.Start); Place(end, Mark.End); Place(move, middle);
         palette.PlacementTarget = Mark.Start.Y >= Mark.End.Y ? start : end;
