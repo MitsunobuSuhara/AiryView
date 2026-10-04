@@ -41,8 +41,8 @@ public static class ThemeManager
             SetBrush(res, "AiryIconStroke", Color.FromRgb(224, 218, 211));
             SetBrush(res, "AiryEditorBackground", Color.FromRgb(57, 53, 53)); // #393535
             SetBrush(res, "AiryEditorForeground", Color.FromRgb(242, 239, 235));
-            SetBrush(res, "AiryEditCanvas", Color.FromRgb(39, 56, 63)); // #27383F
-            SetBrush(res, "AiryEditSurface", Color.FromRgb(53, 73, 82)); // #354952
+            SetBrush(res, "AiryEditCanvas", Color.FromRgb(64, 68, 71)); // #404447
+            SetBrush(res, "AiryEditSurface", Color.FromRgb(75, 79, 82)); // #4B4F52
 
             SetBrush(res, "AiryEditorSelection", Color.FromRgb(53, 94, 111));
             res["AiryEditorSelectionOpacity"] = .85;
