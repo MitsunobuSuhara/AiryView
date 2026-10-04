@@ -477,12 +477,12 @@ public static class SelfTest
         var selectionBadge = (FrameworkElement)window.FindName("TextSelectionBadge");
         var selectionInfo = (TextBlock)window.FindName("TextSelectionInfo");
         var markdownModeButton = (Button)window.FindName("MarkdownModeButton");
-        Check(markdownModeButton.Visibility == Visibility.Visible && selectionInfo.Text.Contains("プレビュー / Preview") && selectionInfo.Text.Contains("MD"), "MarkdownのPreview状態と切替アイコンを表示");
+        Check(markdownModeButton.Visibility == Visibility.Visible && selectionInfo.Text.Contains("プレビュー") && selectionInfo.Text.Contains("MD"), "MarkdownのPreview状態と切替アイコンを表示");
         await window.ToggleMarkdownModeAsync(); window.UpdateLayout();
         var markdownEditor = (TextBox)window.FindName("TextEditor");
-        Check(markdownEditor.IsVisible && markdownEditor.Text.Contains("# 見出し") && selectionInfo.Text.Contains("Source"), "MarkdownをSource表示へ切り替え");
-        Check(window.ToggleWrapForTest() && markdownEditor.TextWrapping == TextWrapping.Wrap && markdownEditor.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled && selectionInfo.Text.Contains("折返し ON / Wrap ON"), "Markdown Sourceの折り返しをON");
-        Check(!window.ToggleWrapForTest() && markdownEditor.TextWrapping == TextWrapping.NoWrap && markdownEditor.HorizontalScrollBarVisibility == ScrollBarVisibility.Auto && selectionInfo.Text.Contains("折返し OFF / Wrap OFF"), "Markdown Sourceの折り返しをOFF");
+        Check(markdownEditor.IsVisible && markdownEditor.Text.Contains("# 見出し") && selectionInfo.Text.Contains("ソース"), "MarkdownをSource表示へ切り替え");
+        Check(window.ToggleWrapForTest() && markdownEditor.TextWrapping == TextWrapping.Wrap && markdownEditor.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled && selectionInfo.Text.Contains("折り返しあり"), "Markdown Sourceの折り返しをON");
+        Check(!window.ToggleWrapForTest() && markdownEditor.TextWrapping == TextWrapping.NoWrap && markdownEditor.HorizontalScrollBarVisibility == ScrollBarVisibility.Auto && selectionInfo.Text.Contains("折り返しなし"), "Markdown Sourceの折り返しをOFF");
         Check(string.Equals(MainWindow.LastRecentFileForTest, markdownFixture, StringComparison.OrdinalIgnoreCase), "開いたMarkdownをWindows Recent登録対象にする");
         markdownEditor.Text += "\n\n## 編集確認\n保存される本文";
         string editedMarkdown = System.IO.Path.GetFullPath("artifacts/markdown-edited.md");
@@ -503,9 +503,9 @@ public static class SelfTest
         Check(window.SearchTextForTest("1行目") == 1 && textEditor.SelectedText == "1行目", "TXTをCtrl＋F相当で検索");
         var characterCount = MainWindow.CountCharacterWidths("ＡあA1");
         Check(characterCount == (4, 2, 2, 6), "全角・半角・半角換算の文字数を区別");
-        Check(selectionBadge.Visibility == Visibility.Visible && selectionInfo.Text.Contains("選択 3字 / 3 chars") && selectionInfo.Text.Contains("全角 2 / Full 2") && selectionInfo.Text.Contains("半角 1 / Half 1") && selectionInfo.Text.Contains("幅 5 / Width 5"), "TXTの選択文字数を右下に表示");
+        Check(selectionBadge.Visibility == Visibility.Visible && selectionInfo.Text.Contains("選択 3字") && selectionInfo.Text.Contains("全角 2") && selectionInfo.Text.Contains("半角 1") && selectionInfo.Text.Contains("幅 5"), "TXTの選択文字数を右下に表示");
         textEditor.Select(0, 0); window.UpdateLayout();
-        Check(selectionInfo.Text.Contains("行 1 / Ln 1") && selectionInfo.Text.Contains("列 1 / Col 1") && selectionInfo.Text.Contains("UTF-8") && selectionInfo.Text.Contains("改行形式 LF / EOL LF"), "選択していないTXTで行・列・文字コードを表示");
+        Check(selectionInfo.Text.Contains("行 1") && selectionInfo.Text.Contains("列 1") && selectionInfo.Text.Contains("UTF-8") && selectionInfo.Text.Contains("改行形式 LF"), "選択していないTXTで行・列・文字コードを表示");
         int textTabCount = window.TabCountForTest;
         await window.OpenPathsAsync([textFixture]); window.UpdateLayout();
         Check(window.TabCountForTest == textTabCount && string.Equals(window.CurrentPathForTest, textFixture, StringComparison.OrdinalIgnoreCase), "同じTXTを再度開くと既存タブへ移動");
@@ -600,7 +600,7 @@ public static class SelfTest
         var pageButtons = FindButtons((DependencyObject)window.FindName("PageControls")).ToArray();
         var openButton = FindButtons((DependencyObject)window.FindName("DocumentToolbar")).First(b => b.ToolTip?.ToString()?.StartsWith("開く / Open") == true);
         Check(pageButtons.Length == 2 && pageButtons.All(b => Near(b.ActualHeight, openButton.ActualHeight, 1)), $"ページ送りボタンの高さを主操作ボタンと揃える ({string.Join(",", pageButtons.Select(b => b.ActualHeight))} vs {openButton.ActualHeight})");
-        Check(selectionBadge.Visibility == Visibility.Visible && selectionInfo.Text.Contains("縦 / Portrait") && selectionInfo.Text.Contains("原寸 / Actual size") && selectionInfo.Text.Contains("100%"), "PDFの原本サイズ・印刷モード・倍率を表示");
+        Check(selectionBadge.Visibility == Visibility.Visible && selectionInfo.Text.Contains("縦") && selectionInfo.Text.Contains("原寸") && selectionInfo.Text.Contains("100%"), "PDFの原本サイズ・印刷モード・倍率を表示");
         int pdfTabCount = window.TabCountForTest;
         await window.OpenPathsAsync([uiPath]); window.UpdateLayout();
         Check(window.TabCountForTest == pdfTabCount && string.Equals(window.CurrentPathForTest, uiPath, StringComparison.OrdinalIgnoreCase), "同じPDFを再度開くと既存タブへ移動");
@@ -686,7 +686,7 @@ public static class SelfTest
         Check(!FindButtons(window).Any(b => b.Content as string == "100%"), "100％ボタンを削除");
         var fit = (Button)window.FindName("FitWidthButton");
         Check(((Panel)fit.Parent).Children[((Panel)fit.Parent).Children.Count - 1] == fit, "画面幅に合わせるを右端に配置");
-        Check(window.FindName("SelectRegion") == null && fit.ToolTip?.ToString() == "画面幅に合わせる / Fit to width", "範囲選択を削除して画面幅の文言に変更");
+        Check(window.FindName("SelectRegion") == null && fit.ToolTip?.ToString() == "画面幅に合わせる", "範囲選択を削除して画面幅の文言に変更");
         window.WindowState = WindowState.Normal; window.Width = 860;
         await Task.Delay(200); window.UpdateLayout();
         fit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

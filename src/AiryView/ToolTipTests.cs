@@ -19,7 +19,7 @@ internal static class ToolTipTests
         var button = new Button { Content = "＋" }; window.Content = button;
         var guard = new ToolTipGuard(window);
         window.Show(); window.Activate(); await Task.Delay(100);
-        var tip = new ToolTip { Content = "拡大 / Zoom in", PlacementTarget = button };
+        var tip = new ToolTip { Content = "拡大", PlacementTarget = button };
         button.ToolTip = tip;
         Check(guard.CanShow, "通常画面では説明を表示できる");
         tip.IsOpen = true; await Task.Delay(50);
@@ -73,8 +73,8 @@ internal static class ToolTipTests
         Check(!guard.CanShow, "無効化された画面の説明表示を抑止");
         window.IsEnabled = true; window.Close();
         var main = new MainWindow(); main.Show(); main.Activate(); await Task.Delay(100);
-        var zoom = ((WrapPanel)main.FindName("DocumentToolbar")).Children.OfType<Button>().First(b => b.ToolTip as string == "拡大 / Zoom in");
-        tip = new ToolTip { Content = "拡大 / Zoom in", PlacementTarget = zoom }; zoom.ToolTip = tip;
+        var zoom = ((WrapPanel)main.FindName("DocumentToolbar")).Children.OfType<Button>().First(b => b.ToolTip as string == "拡大");
+        tip = new ToolTip { Content = "拡大", PlacementTarget = zoom }; zoom.ToolTip = tip;
         ownerHandle = new WindowInteropHelper(main).Handle;
         nativeDialogSeen = nativeExistingClosed = nativeTipBlocked = false;
         tip.IsOpen = true; timer.Start();

@@ -229,7 +229,7 @@ public partial class MainWindow : Window
         var tab = new TabItem { ToolTip = toolTip, Tag = state, Padding = new Thickness(12, 3, 7, 3), MinHeight = 34 };
         var header = new StackPanel { Orientation = Orientation.Horizontal };
         header.Children.Add(new TextBlock { Text = title, VerticalAlignment = VerticalAlignment.Center, FontSize = 15 });
-        var close = new Button { Content = "×", Tag = tab, ToolTip = "タブを閉じる / Close tab  Ctrl+W", FontSize = 17, FontWeight = FontWeights.SemiBold, Width = 28, Height = 24, Padding = new Thickness(0, -2, 0, 1), Margin = new Thickness(8, 0, -2, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
+        var close = new Button { Content = "×", Tag = tab, ToolTip = "タブを閉じる（Ctrl+W）", FontSize = 17, FontWeight = FontWeights.SemiBold, Width = 28, Height = 24, Padding = new Thickness(0, -2, 0, 1), Margin = new Thickness(8, 0, -2, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
         close.Click += CloseTabClick; header.Children.Add(close); tab.Header = header;
         return tab;
     }
@@ -541,7 +541,7 @@ public partial class MainWindow : Window
         TextSelectionBadge.Visibility = Visibility.Collapsed;
         SaveTextButton.Visibility = textDocument?.CanEdit == true ? Visibility.Visible : Visibility.Collapsed;
         MarkdownModeButton.Visibility = textDocument?.IsMarkdown == true ? Visibility.Visible : Visibility.Collapsed;
-        if (textDocument?.IsMarkdown == true) MarkdownModeButton.ToolTip = textDocument.SourceMode ? "整形表示へ / Switch to Preview\nCtrl+Shift+M" : "編集表示へ / Switch to Source\nCtrl+Shift+M";
+        if (textDocument?.IsMarkdown == true) MarkdownModeButton.ToolTip = textDocument.SourceMode ? "整形表示へ\nCtrl+Shift+M" : "編集表示へ\nCtrl+Shift+M";
         ImageViewer.Visibility = image != null ? Visibility.Visible : Visibility.Collapsed;
         DocumentToolbar.Visibility = Visibility.Visible;
         PageControls.Visibility = state != null ? Visibility.Visible : Visibility.Collapsed;
@@ -614,7 +614,7 @@ public partial class MainWindow : Window
         ];
         string? name = standards.FirstOrDefault(p => Math.Abs(shortSide - p.Short) <= 1 && Math.Abs(longSide - p.Long) <= 1).Name;
         if (name == null) return $"{size.Width:0.#} × {size.Height:0.#} mm";
-        return size.Width > size.Height ? name + " 横 / Landscape" : name + " 縦 / Portrait";
+        return size.Width > size.Height ? name + " 横" : name + " 縦";
     }
     private void UpdatePdfSmartStatus()
     {
@@ -625,14 +625,14 @@ public partial class MainWindow : Window
         }
         string mode = state.Document.LastPrintMode switch
         {
-            PrintMode.Scale when Math.Abs(state.Document.PrintPercent - 100) < .001 => "原寸 / Actual size",
-            PrintMode.Scale => "指定倍率 / Scale",
-            PrintMode.Fit => "用紙に合わせる / Fit to paper",
-            PrintMode.TwoUp => "2ページ / 2-up",
-            PrintMode.FourUp => "4ページ / 4-up",
-            PrintMode.Booklet => "小冊子 / Booklet",
-            PrintMode.Poster => "ポスター / Poster",
-            _ => "印刷 / Print"
+            PrintMode.Scale when Math.Abs(state.Document.PrintPercent - 100) < .001 => "原寸",
+            PrintMode.Scale => "指定倍率",
+            PrintMode.Fit => "用紙に合わせる",
+            PrintMode.TwoUp => "2ページ",
+            PrintMode.FourUp => "4ページ",
+            PrintMode.Booklet => "小冊子",
+            PrintMode.Poster => "ポスター",
+            _ => "印刷"
         };
         string percent = state.Document.LastPrintMode is PrintMode.Scale or PrintMode.Poster ? $"  •  {state.Document.PrintPercent:0.##}%" : "";
         TextSelectionInfo.Text = $"{PdfPageLabel(state.Document.SizeMm(state.Page))}  •  {mode}{percent}";
@@ -885,7 +885,7 @@ public partial class MainWindow : Window
     private void UpdateNonPdfStatus()
     {
         if (CurrentText is { } text)
-            Status.Text = text.IsMarkdown ? $"{System.IO.Path.GetFileName(text.Path)}  ·  {(text.SourceMode ? "Source編集" : "Preview")}  ·  Ctrl＋Shift＋Mで切替" : $"{(string.IsNullOrEmpty(text.Path) ? "無題.txt" : System.IO.Path.GetFileName(text.Path))}  ·  編集可能  ·  Ctrl＋Sで保存";
+            Status.Text = text.IsMarkdown ? $"{System.IO.Path.GetFileName(text.Path)}  ·  {(text.SourceMode ? "ソース編集" : "プレビュー")}  ·  Ctrl＋Shift＋Mで切替" : $"{(string.IsNullOrEmpty(text.Path) ? "無題.txt" : System.IO.Path.GetFileName(text.Path))}  ·  編集可能  ·  Ctrl＋Sで保存";
         else if (CurrentImage is { } image) Status.Text = $"{System.IO.Path.GetFileName(image.Path)}  ·  {image.DisplayWidth} × {image.DisplayHeight} px  ·  表示 {image.Zoom * 100:0.##}%";
     }
     private void ToggleWrap(object s, RoutedEventArgs e) => ToggleWrapForTest();
@@ -915,7 +915,7 @@ public partial class MainWindow : Window
     {
         if (CurrentText is not { IsMarkdown: true, SourceMode: false } state) return;
         TextSelectionInfo.Text = $"プレビュー  •  MD  •  {EncodingLabel(state.Encoding)}";
-        TextSelectionBadge.ToolTip = "整形表示中。上の </> または Ctrl+Shift+M でソース編集 / Sourceへ切り替えます。";
+        TextSelectionBadge.ToolTip = "整形表示中。上の </> または Ctrl+Shift+M でソース編集へ切り替えます。";
         UpdateTokenStatus(state);
         TextSelectionBadge.Visibility = Visibility.Visible;
     }
@@ -1071,7 +1071,7 @@ public partial class MainWindow : Window
         Status.Text = $"{selectedPdfText.Length}文字を選択  ·  Ctrl＋Cでコピー";
 
         TextSelectionInfo.Text = $"{selectedPdfText.Length}文字選択  •  コピー（Ctrl+C）";
-        TextSelectionBadge.ToolTip = "選択したPDF文字をコピー / Copy selected PDF text（Ctrl+C）";
+        TextSelectionBadge.ToolTip = "選択したPDF文字をコピー（Ctrl+C）";
         TextSelectionBadge.Visibility = Visibility.Visible;
     }
     private void ClearPdfSelection()
