@@ -1,5 +1,5 @@
 <Window x:Class="AiryView.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="AiryView 2.1.61" Width="1180" Height="840" MinWidth="860" MinHeight="560" Background="{DynamicResource AirySurface}" FontFamily="Yu Gothic UI" FontSize="14" Icon="Assets/icon.ico"
+ Title="AiryView 2.1.62" Width="1180" Height="840" MinWidth="480" MinHeight="320" Background="{DynamicResource AirySurface}" FontFamily="Yu Gothic UI" FontSize="14" Icon="Assets/icon.ico"
  WindowStyle="SingleBorderWindow" UseLayoutRounding="True" SnapsToDevicePixels="True" AllowDrop="True" Drop="FilesDropped" PreviewKeyDown="WindowKeyDown" Closing="WindowClosing">
  <DockPanel>
   <StackPanel DockPanel.Dock="Top" Background="{DynamicResource AirySurface}">
@@ -31,10 +31,10 @@
      <Button Content="＋" Click="NewTextClick" ToolTip="新しいメモ&#10;Ctrl+T" ToolTipService.InitialShowDelay="250" AutomationProperties.Name="新しいメモ" FontSize="20" Width="43" MinHeight="34" Padding="5,0" Margin="2,0,0,0"/>
     </StackPanel>
    </ScrollViewer>
-   <DockPanel x:Name="TextSearchBar" Visibility="Collapsed" Margin="12,0,12,6" LastChildFill="False">
+   <WrapPanel x:Name="TextSearchBar" Visibility="Collapsed" Margin="12,0,12,6">
     <TextBox x:Name="TextSearchInput" Width="260" Padding="7,4" KeyDown="TextSearchKeyDown" GotKeyboardFocus="TextSearchGotFocus" ToolTip="文章内を検索"/>
     <Button Content="前" Click="PreviousTextMatch" Padding="9,4"/><Button Content="次" Click="NextTextMatch" Padding="9,4"/><TextBlock x:Name="TextSearchCount" VerticalAlignment="Center" Margin="8,0" Foreground="{DynamicResource AiryInk}"/><Button Content="×" Click="CloseTextSearch" Padding="9,4" ToolTip="検索を閉じる"/>
-   </DockPanel>
+   </WrapPanel>
    <TextBlock x:Name="Status" Visibility="Collapsed"/>
   </StackPanel>
   <Grid x:Name="ContentGrid" Background="{DynamicResource AiryCanvas}">

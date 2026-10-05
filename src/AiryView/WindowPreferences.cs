@@ -8,6 +8,7 @@ public static class WindowPreferences
     
     public static void Restore(Window window)
     {
+        WindowDisplayBounds.Attach(window);
         try
         {
             var path = File.Exists(SettingsPath) ? SettingsPath : LegacySettingsPaths.FirstOrDefault(File.Exists);
@@ -21,8 +22,9 @@ public static class WindowPreferences
             }
             var saved = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(path));
             if (saved == null || !double.IsFinite(saved.Width) || !double.IsFinite(saved.Height)) return;
-            window.Width = Math.Clamp(saved.Width, window.MinWidth, Math.Max(window.MinWidth, SystemParameters.WorkArea.Width));
-            window.Height = Math.Clamp(saved.Height, window.MinHeight, Math.Max(window.MinHeight, SystemParameters.WorkArea.Height));
+            // 起動先が決まる前に主画面の寸法で切らず、SourceInitializedで表示先に合わせる。
+            window.Width = Math.Clamp(saved.Width, window.MinWidth, window.MaxWidth);
+            window.Height = Math.Clamp(saved.Height, window.MinHeight, window.MaxHeight);
             if (saved.Maximized) window.WindowState = WindowState.Maximized;
 
             if (!MainWindow.SuppressRecentFilesForTest)
@@ -36,6 +38,7 @@ public static class WindowPreferences
     
     public static void Save(Window window)
     {
+        if (MainWindow.SuppressRecentFilesForTest) return;
         try
         {
             var bounds = window.WindowState == WindowState.Normal ? new Rect(window.Left, window.Top, window.Width, window.Height) : window.RestoreBounds;
