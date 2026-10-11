@@ -56,6 +56,28 @@ internal static class DisplayTests
             viewer.Zoom = 100;
             ThemeManager.Apply(AppTheme.Modern);
             var hwnd = new WindowInteropHelper(window).Handle;
+            var screens = System.Windows.Forms.Screen.AllScreens.OrderByDescending(s => s.WorkingArea.Width).ToArray();
+            if (screens.Length > 1)
+            {
+                var origin = screens[0].WorkingArea;
+                var target = screens[^1].WorkingArea;
+                SetWindowPos(hwnd, IntPtr.Zero, origin.Left + 80, origin.Top + 80, 1000, 700, 0x0014);
+                await Settle(window);
+                double maxWidth = window.MaxWidth, maxHeight = window.MaxHeight;
+                SendMessage(hwnd, 0x0231, IntPtr.Zero, IntPtr.Zero);
+                try
+                {
+                    SetWindowPos(hwnd, IntPtr.Zero, target.Right - 200, target.Top + 80, 600, 700, 0x0014);
+                    await Settle(window);
+                    Check(window.MaxWidth == maxWidth && window.MaxHeight == maxHeight,
+                        "ドラッグ中のモニター移動では寸法制限を更新しない");
+                    Check(window.PointToScreen(new Point()).X >= target.Right - 210,
+                        "ドラッグ中の位置を画面端へ引き戻さない");
+                }
+                finally { SendMessage(hwnd, 0x0232, IntPtr.Zero, IntPtr.Zero); }
+                await Settle(window);
+                CheckOnMonitor(window, "ドラッグ終了後の補正");
+            }
             foreach (var screen in System.Windows.Forms.Screen.AllScreens)
             {
                 window.WindowState = WindowState.Normal;
@@ -187,4 +209,5 @@ internal static class DisplayTests
 
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, [In, Out] int[] data);
+    [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr data);
 }

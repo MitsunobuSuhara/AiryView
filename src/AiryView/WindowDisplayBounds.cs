@@ -48,7 +48,7 @@ internal sealed class WindowDisplayBounds
                     var limits = Marshal.PtrToStructure<MinMaxInfo>(lParam);
                     limits.MaxPosition = new NativePoint(info.Work.Left - info.Monitor.Left, info.Work.Top - info.Monitor.Top);
                     limits.MaxSize = new NativePoint(info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top);
-                    limits.MaxTrackSize = limits.MaxSize;
+                    if (!moving) limits.MaxTrackSize = limits.MaxSize;
                     double scale = Math.Max(96u, GetDpiForWindow(hwnd)) / 96.0;
                     limits.MinTrackSize.X = (int)Math.Min(Math.Ceiling(window.MinWidth * scale), limits.MaxSize.X);
                     limits.MinTrackSize.Y = (int)Math.Min(Math.Ceiling(window.MinHeight * scale), limits.MaxSize.Y);
@@ -67,7 +67,7 @@ internal sealed class WindowDisplayBounds
 
     private void QueueUpdate()
     {
-        if (pending || updating || closed) return;
+        if (pending || updating || moving || closed) return;
         pending = true;
         window.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
@@ -78,7 +78,8 @@ internal sealed class WindowDisplayBounds
 
     private void UpdateBounds()
     {
-        if (handle == IntPtr.Zero || updating || window.WindowState == WindowState.Minimized) return;
+        // 寸法制限の変更もWPFの再配置を起こすため、移動中は補正全体を待つ。
+        if (handle == IntPtr.Zero || updating || moving || window.WindowState == WindowState.Minimized) return;
         var display = ReadDisplay(handle);
         if (display.WorkArea.IsEmpty) return;
         updating = true;
