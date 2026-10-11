@@ -11,3 +11,4 @@
 - 退避・ログ：artifacts/drag-visible-session/。旧版2.1.63・2.1.64・2.1.65を保存。利用者の保存・終了確認後に更新した。既存未コミット変更は保持。
 - リリース準備：AiryView-2.1.66-20261011-171528.zipとSHA256SUMS.txt。ZIP SHA256：e557cd148043b6ecbfed15a5be46535880b3f335b66a20c40c28c185bc626ded。ZIP内DLLが導入版と一致し、セットアップcmdとPDF helperが存在することを確認。
 - 配布方針：既存v2.1.58リリースと同様、実際の導入確認済みビルドを配布する。既存UI調整を含むため、今回分だけを保存したGitタグのソースでは同一バイナリを再現できないことをリリース説明に明記する。
+- GitHub公開完了：https://github.com/MitsunobuSuhara/AiryView/releases/tag/v2.1.66 。Latest、draft=false、prerelease=falseをAPIで確認。ZIPとSHA256SUMS.txtがuploadedになり、公開ZIPのdigestがローカルSHA256と一致。タグの対象はc86ef55435ab60ab8a8398dda93021d20ad07dfc。
