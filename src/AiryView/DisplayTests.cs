@@ -30,6 +30,18 @@ internal static class DisplayTests
             File.WriteAllText(fixture, "# 縦置きモニターの表示確認\n\n" + string.Join("\n\n", Enumerable.Range(1, 75)
                 .Select(n => $"- {n}：" + string.Concat(Enumerable.Repeat("狭い画面でも本文を折り返し、右端の文字まで読めます。", 8)))) + "\n\n最終段落の確認");
             window.Show();
+            Check(AreDpiAwarenessContextsEqual(GetWindowDpiAwarenessContext(new WindowInteropHelper(window).Handle), new IntPtr(-4)),
+                "モニターごとの倍率に対応したWindows標準のPerMonitorV2で表示");
+            Check((GetWindowLongPtr(new WindowInteropHelper(window).Handle, -16).ToInt64() & 0x00C00000) == 0x00C00000,
+                "独自タイトルバーでもWindows標準の移動枠スタイルを保持");
+            var region = CreateRectRgn(0, 0, 0, 0);
+            try
+            {
+                Check(GetWindowRgn(new WindowInteropHelper(window).Handle, region) == 0,
+                    "移動枠を切り抜く独自ウィンドウ領域を設定しない");
+            }
+            finally { DeleteObject(region); }
+            results.Add($"INFO: Windowsの移動中全文表示={SystemParameters.DragFullWindows}");
             await window.OpenPathsAsync([fixture]);
             await Settle(window);
             var viewer = (FlowDocumentScrollViewer)window.FindName("MarkdownViewer");
@@ -67,6 +79,12 @@ internal static class DisplayTests
                 SendMessage(hwnd, 0x0231, IntPtr.Zero, IntPtr.Zero);
                 try
                 {
+                    var movingLimits = new int[10];
+                    SendMessage(hwnd, 0x0024, IntPtr.Zero, movingLimits);
+                    Check(movingLimits[8] > 0 && movingLimits[9] > 0,
+                        "ドラッグ中もWindowsへ有効な最大追跡寸法を返す");
+                    Check(movingLimits[8] >= origin.Width && movingLimits[9] >= origin.Height,
+                        "最大追跡寸法を移動先の狭い画面へ制限しない");
                     SetWindowPos(hwnd, IntPtr.Zero, target.Right - 200, target.Top + 80, 600, 700, 0x0014);
                     await Settle(window);
                     Check(window.MaxWidth == maxWidth && window.MaxHeight == maxHeight,
@@ -185,8 +203,10 @@ internal static class DisplayTests
         Check(limits[6] >= Math.Min(Math.Ceiling(window.MinWidth * display.Scale), display.WorkArea.Width)
             && limits[7] >= Math.Min(Math.Ceiling(window.MinHeight * display.Scale), display.WorkArea.Height), label + " 手動縮小の最小寸法を維持");
         Check(OnScreen(title.CloseButton, window) && OnScreen(title.MinimizeButton, window), label + " タイトル操作が作業領域内");
-        Check(window.ActualWidth <= display.WorkArea.Width / display.Scale + 1 && window.ActualHeight <= display.WorkArea.Height / display.Scale + 1,
-            label + " ウィンドウ寸法が作業領域内");
+        // 標準枠の最大化には画面外の非表示枠があるため、実際の内容領域を検証する。
+        var visibleSize = ((FrameworkElement)window.Content).RenderSize;
+        Check(visibleSize.Width <= display.WorkArea.Width / display.Scale + 1 && visibleSize.Height <= display.WorkArea.Height / display.Scale + 1,
+            label + " ウィンドウの内容領域が作業領域内");
     }
 
     private static IEnumerable<T> Find<T>(DependencyObject root) where T : DependencyObject
@@ -210,4 +230,10 @@ internal static class DisplayTests
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, [In, Out] int[] data);
     [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr data);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
+    [DllImport("user32.dll")] private static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr handle);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindowDpiAwarenessContext(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern bool AreDpiAwarenessContextsEqual(IntPtr first, IntPtr second);
 }

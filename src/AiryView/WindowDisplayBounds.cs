@@ -8,6 +8,8 @@ namespace AiryView;
 internal sealed class WindowDisplayBounds
 {
     private readonly Window window;
+    private readonly FrameworkElement? content;
+    private readonly Thickness contentMargin;
     private readonly double minimumWidth, minimumHeight, maximumWidth, maximumHeight;
     private HwndSource? source;
     private IntPtr handle, monitor;
@@ -16,6 +18,8 @@ internal sealed class WindowDisplayBounds
     private WindowDisplayBounds(Window window)
     {
         this.window = window;
+        content = window.Content as FrameworkElement;
+        contentMargin = content?.Margin ?? default;
         minimumWidth = window.MinWidth; minimumHeight = window.MinHeight;
         maximumWidth = window.MaxWidth; maximumHeight = window.MaxHeight;
         window.SourceInitialized += (_, _) =>
@@ -48,7 +52,11 @@ internal sealed class WindowDisplayBounds
                     var limits = Marshal.PtrToStructure<MinMaxInfo>(lParam);
                     limits.MaxPosition = new NativePoint(info.Work.Left - info.Monitor.Left, info.Work.Top - info.Monitor.Top);
                     limits.MaxSize = new NativePoint(info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top);
-                    if (!moving) limits.MaxTrackSize = limits.MaxSize;
+                    // 処理済みにする以上、移動中も有効な追跡寸法を返す。
+                    // 最大化の寸法と混同せず、Windows標準の仮想画面の制限を使う。
+                    limits.MaxTrackSize = new NativePoint(
+                        Math.Max(limits.MaxSize.X, GetSystemMetrics(59)),
+                        Math.Max(limits.MaxSize.Y, GetSystemMetrics(60)));
                     double scale = Math.Max(96u, GetDpiForWindow(hwnd)) / 96.0;
                     limits.MinTrackSize.X = (int)Math.Min(Math.Ceiling(window.MinWidth * scale), limits.MaxSize.X);
                     limits.MinTrackSize.Y = (int)Math.Min(Math.Ceiling(window.MinHeight * scale), limits.MaxSize.Y);
@@ -89,10 +97,25 @@ internal sealed class WindowDisplayBounds
             var size = LogicalWorkSize(display.WorkArea, display.Scale);
             window.MinWidth = Math.Min(minimumWidth, size.Width);
             window.MinHeight = Math.Min(minimumHeight, size.Height);
-            window.MaxWidth = Math.Min(maximumWidth, size.Width);
-            window.MaxHeight = Math.Min(maximumHeight, size.Height);
+            // 通常窓はモニターをまたげる。画面内への補正は移動終了後のFitで行う。
+            window.MaxWidth = maximumWidth;
+            window.MaxHeight = maximumHeight;
+            if (content != null)
+            {
+                content.Margin = contentMargin;
+                // 標準枠の最大化では外側の非表示枠が画面を越える。内容だけ内側へ収める。
+                if (window.WindowState == WindowState.Maximized && GetWindowRect(handle, out var maximized))
+                {
+                    var area = display.WorkArea;
+                    content.Margin = new Thickness(
+                        contentMargin.Left + Math.Max(0, area.Left - maximized.Left) / display.Scale,
+                        contentMargin.Top + Math.Max(0, area.Top - maximized.Top) / display.Scale,
+                        contentMargin.Right + Math.Max(0, maximized.Right - area.Right) / display.Scale,
+                        contentMargin.Bottom + Math.Max(0, maximized.Bottom - area.Bottom) / display.Scale);
+                }
+            }
             // 移動中は画面の境界で引き戻さず、手を離してから全体を収める。
-            if (window.WindowState == WindowState.Normal && !moving && GetWindowRect(handle, out var native))
+            if (window.WindowState == WindowState.Normal && GetWindowRect(handle, out var native))
             {
                 var bounds = native.ToRect();
                 var fitted = Fit(bounds, display.WorkArea);
@@ -135,6 +158,7 @@ internal sealed class WindowDisplayBounds
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out NativeRect rect);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
 }
