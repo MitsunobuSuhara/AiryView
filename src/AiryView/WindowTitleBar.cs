@@ -18,10 +18,12 @@ internal sealed class WindowTitleBar : DockPanel
 
     internal static WindowTitleBar Install(Window window, DockPanel root)
     {
-        window.WindowStyle = WindowStyle.None;
+        // WindowChromeで見た目だけを置換し、枠だけのドラッグ表示などOSの機能を残す。
+        window.WindowStyle = WindowStyle.SingleBorderWindow;
         window.UseLayoutRounding = true; window.SnapsToDevicePixels = true;
         WindowChrome.SetWindowChrome(window, new WindowChrome { CaptionHeight = BarHeight,
-            ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), UseAeroCaptionButtons = false });
+            // DWMの枠を有効にし、倍率をまたぐ移動枠を切り抜くSetWindowRgnを避ける。
+            ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(1), UseAeroCaptionButtons = false });
         var bar = new WindowTitleBar(window);
         SetDock(bar, Dock.Top); root.Children.Insert(0, bar);
         return bar;
