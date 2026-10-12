@@ -1,5 +1,5 @@
 <Window x:Class="AiryView.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="AiryView 2.1.67" Width="1180" Height="840" MinWidth="480" MinHeight="320" Background="{DynamicResource AirySurface}" FontFamily="Yu Gothic UI" FontSize="14" Icon="Assets/icon.ico"
+ Title="AiryView 2.1.68" Width="1180" Height="840" MinWidth="480" MinHeight="320" Background="{DynamicResource AirySurface}" FontFamily="Yu Gothic UI" FontSize="14" Icon="Assets/icon.ico"
  WindowStyle="SingleBorderWindow" UseLayoutRounding="True" SnapsToDevicePixels="True" AllowDrop="True" Drop="FilesDropped" PreviewKeyDown="WindowKeyDown" Closing="WindowClosing">
  <DockPanel>
   <StackPanel DockPanel.Dock="Top" Background="{DynamicResource AirySurface}">
@@ -39,27 +39,21 @@
   </StackPanel>
   <Grid x:Name="ContentGrid" Background="{DynamicResource AiryCanvas}">
    <Border x:Name="PagePreviewSidebar" Visibility="Collapsed" Width="260" HorizontalAlignment="Left" Panel.ZIndex="15" Background="{DynamicResource AirySurface}" BorderBrush="{DynamicResource AiryStroke}" BorderThickness="0,0,1,0"><Grid><ScrollViewer Margin="0,0,8,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="PagePreviewItems" Margin="8"/></ScrollViewer><Thumb Width="8" HorizontalAlignment="Right" Cursor="SizeWE" DragDelta="PagePreviewResize" ToolTip="ドラッグして一覧の幅を変更"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="{DynamicResource AiryStroke}"/></ControlTemplate></Thumb.Template></Thumb></Grid></Border>
-   <Grid x:Name="Welcome" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="820">
-    <!-- Classic Welcome View -->
-    <StackPanel x:Name="ClassicWelcomeView" HorizontalAlignment="Center">
-     <Image x:Name="WelcomeCrane" Width="88" Height="88" Stretch="Uniform" Margin="0,0,0,24" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="AiryViewの鶴"/>
-     <TextBlock Text="すっと開く。正確に印刷。" FontSize="25" Foreground="{DynamicResource AiryInk}" HorizontalAlignment="Center"/>
-     <TextBlock Text="ファイルを開く" Margin="0,18,0,0" Foreground="{DynamicResource AiryInkSecondary}" HorizontalAlignment="Center"/>
-     <TextBlock Text="新しいメモ：＋ または Ctrl＋T" Margin="0,10,0,0" Foreground="{DynamicResource AiryInkSecondary}" HorizontalAlignment="Center"/>
-    </StackPanel>
+   <ScrollViewer x:Name="WelcomeScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="{Binding Visibility, ElementName=Welcome}">
+   <Grid x:Name="Welcome" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="16" MaxWidth="820">
     <!-- Modern Hero Welcome View -->
-    <StackPanel x:Name="ModernWelcomeView" Visibility="Collapsed" HorizontalAlignment="Center" MaxWidth="720">
+    <StackPanel x:Name="ModernWelcomeView" HorizontalAlignment="Stretch" MaxWidth="720">
      <Border Width="100" Height="100" CornerRadius="50" Background="{DynamicResource AiryButtonBackground}" BorderBrush="{DynamicResource AiryAccent}" BorderThickness="1.5" HorizontalAlignment="Center" Margin="0,0,0,20">
-      <Image x:Name="ModernWelcomeCrane" Width="66" Height="66" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+      <Image x:Name="WelcomeCrane" Width="66" Height="66" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
      </Border>
      <Border Background="{DynamicResource AirySurfaceSecondary}" BorderBrush="{DynamicResource AiryStroke}" BorderThickness="1" CornerRadius="12" Padding="12,3" HorizontalAlignment="Center" Margin="0,0,0,10">
       <TextBlock Text="AiryView" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AiryAccent}"/>
      </Border>
-     <TextBlock Text="すっと開く。正確に印刷。" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource AiryInk}" HorizontalAlignment="Center" TextAlignment="Center"/>
-     <TextBlock Text="文書を開く・編集する・印刷する。" FontSize="14" Foreground="{DynamicResource AiryInkSecondary}" Margin="0,4,0,26" HorizontalAlignment="Center"/>
+     <TextBlock Text="Open&#160;with&#160;ease. Print&#160;with&#160;precision." FontSize="28" FontWeight="Bold" Foreground="{DynamicResource AiryInk}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+     <TextBlock Text="Open, edit, and print your documents." FontSize="14" Foreground="{DynamicResource AiryInkSecondary}" Margin="0,4,0,26" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
 
      <WrapPanel HorizontalAlignment="Center">
-      <Button Click="OpenClick" Margin="8,6" Padding="0" Cursor="Hand" Background="{DynamicResource AirySurfaceSecondary}" BorderBrush="{DynamicResource AiryStroke}" BorderThickness="1" AutomationProperties.Name="ファイルを開くカード">
+      <Button Click="OpenClick" Margin="8,6" Padding="0" Cursor="Hand" Background="{DynamicResource AirySurfaceSecondary}" BorderBrush="{DynamicResource AiryStroke}" BorderThickness="1" AutomationProperties.Name="Open a file">
        <Border CornerRadius="12" Padding="20,16" Width="260" MinHeight="86" SnapsToDevicePixels="True">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -71,18 +65,18 @@
          </Border>
          <StackPanel Grid.Column="1" VerticalAlignment="Center">
           <DockPanel LastChildFill="False">
-           <TextBlock Text="ファイルを開く" FontWeight="SemiBold" FontSize="15" Foreground="{DynamicResource AiryInk}"/>
+           <TextBlock Text="Open a file" FontWeight="SemiBold" FontSize="15" Foreground="{DynamicResource AiryInk}"/>
            <Border DockPanel.Dock="Right" Background="{DynamicResource AiryTabInactiveBackground}" BorderBrush="{DynamicResource AiryStroke}" BorderThickness="1" CornerRadius="5" Padding="5,1">
             <TextBlock Text="Ctrl+O" FontSize="10" Foreground="{DynamicResource AiryInkSecondary}" FontWeight="SemiBold"/>
            </Border>
           </DockPanel>
-          <TextBlock Text="PDF • 画像 • Markdown • TXT" FontSize="11" Foreground="{DynamicResource AiryInkSecondary}" Margin="0,4,0,0"/>
+          <TextBlock Text="PDF • Images • Markdown • TXT" FontSize="11" Foreground="{DynamicResource AiryInkSecondary}" Margin="0,4,0,0"/>
          </StackPanel>
         </Grid>
        </Border>
       </Button>
 
-      <Button Click="NewTextClick" Margin="8,6" Padding="0" Cursor="Hand" Background="{DynamicResource AirySurfaceSecondary}" BorderBrush="{DynamicResource AiryStroke}" BorderThickness="1" AutomationProperties.Name="新しいメモカード">
+      <Button Click="NewTextClick" Margin="8,6" Padding="0" Cursor="Hand" Background="{DynamicResource AirySurfaceSecondary}" BorderBrush="{DynamicResource AiryStroke}" BorderThickness="1" AutomationProperties.Name="New note">
        <Border CornerRadius="12" Padding="20,16" Width="260" MinHeight="86" SnapsToDevicePixels="True">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -93,21 +87,22 @@
          </Border>
          <StackPanel Grid.Column="1" VerticalAlignment="Center">
           <DockPanel LastChildFill="False">
-           <TextBlock Text="新しいメモ" FontWeight="SemiBold" FontSize="15" Foreground="{DynamicResource AiryInk}"/>
+           <TextBlock Text="New note" FontWeight="SemiBold" FontSize="15" Foreground="{DynamicResource AiryInk}"/>
            <Border DockPanel.Dock="Right" Background="{DynamicResource AiryTabInactiveBackground}" BorderBrush="{DynamicResource AiryStroke}" BorderThickness="1" CornerRadius="5" Padding="5,1">
             <TextBlock Text="Ctrl+T" FontSize="10" Foreground="{DynamicResource AiryInkSecondary}" FontWeight="SemiBold"/>
            </Border>
           </DockPanel>
-          <TextBlock Text="白紙メモ • 素早く執筆開始" FontSize="11" Foreground="{DynamicResource AiryInkSecondary}" Margin="0,4,0,0"/>
+          <TextBlock Text="Blank page • Start writing" FontSize="11" Foreground="{DynamicResource AiryInkSecondary}" Margin="0,4,0,0"/>
          </StackPanel>
         </Grid>
        </Border>
       </Button>
      </WrapPanel>
 
-     <TextBlock Text="または、ここにファイルをドラッグ＆ドロップして即座に表示" FontSize="12" Foreground="{DynamicResource AiryInkSecondary}" Margin="0,18,0,0" HorizontalAlignment="Center"/>
+     <TextBlock Text="Or drag and drop a file here to open it." FontSize="12" Foreground="{DynamicResource AiryInkSecondary}" Margin="0,18,0,0" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
     </StackPanel>
    </Grid>
+   </ScrollViewer>
    <ScrollViewer x:Name="ImageViewer" Visibility="Collapsed" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="{DynamicResource AiryCanvas}" PreviewMouseWheel="ImageWheel"><Image x:Name="ReaderImage" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center" MouseLeftButtonDown="ImageClick"/></ScrollViewer>
    <Grid x:Name="TextEditorArea" Visibility="Collapsed">
     <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

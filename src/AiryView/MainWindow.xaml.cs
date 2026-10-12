@@ -197,11 +197,7 @@ public partial class MainWindow : Window
                 var icon = BitmapDecoder.Create(new Uri("pack://application:,,,/Assets/icon.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
                 var frame = icon.Frames.OrderByDescending(frame => frame.PixelWidth).First();
                 WelcomeCrane.Source = frame;
-                ModernWelcomeCrane.Source = frame;
             }
-            bool isModern = ThemeManager.CurrentTheme == AppTheme.Modern;
-            ClassicWelcomeView.Visibility = isModern ? Visibility.Collapsed : Visibility.Visible;
-            ModernWelcomeView.Visibility = isModern ? Visibility.Visible : Visibility.Collapsed;
         }
     }
     [DllImport("dwmapi.dll")]
