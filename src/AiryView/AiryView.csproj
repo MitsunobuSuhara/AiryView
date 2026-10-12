@@ -11,7 +11,7 @@
     <AssemblyName>AiryView</AssemblyName>
     <ApplicationIcon>../../assets/icons/AiryView.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.1.66</Version>
+    <Version>2.1.67</Version>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>

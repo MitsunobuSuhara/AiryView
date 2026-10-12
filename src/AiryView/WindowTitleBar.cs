@@ -39,7 +39,7 @@ internal sealed class WindowTitleBar : DockPanel
 
         // テーマ切替ボタン（最小化の左隣）
         themeIcon = new ShapePath { Width = 13, Height = 13, Stroke = Brushes.White, Fill = Brushes.Transparent, StrokeThickness = 1.2, Stretch = Stretch.Uniform, IsHitTestVisible = false };
-        ThemeButton = AddCustomButton(buttons, themeIcon, "デザイン切替: モダン / クラシック (Ctrl+Shift+D)", () => ThemeManager.Toggle(window));
+        ThemeButton = AddCustomButton(buttons, themeIcon, "デザイン切替: モダン / クラシック (Ctrl+Shift+Z)", () => ThemeManager.Toggle(window));
         UpdateThemeIcon(ThemeManager.CurrentTheme);
 
         ThemeManager.ThemeChanged += UpdateThemeIcon;
@@ -74,7 +74,7 @@ internal sealed class WindowTitleBar : DockPanel
             themeIcon.Data = Geometry.Parse("M 6.5,3.5 A 3,3 0 1 1 6.5,9.5 A 3,3 0 1 1 6.5,3.5 M 6.5,0.5 L 6.5,2 M 6.5,11 L 6.5,12.5 M 0.5,6.5 L 2,6.5 M 11,6.5 L 12.5,6.5 M 2.2,2.2 L 3.3,3.3 M 9.7,9.7 L 10.8,10.8 M 2.2,10.8 L 3.3,9.7 M 9.7,3.3 L 10.8,2.2");
             themeIcon.Fill = new SolidColorBrush(Color.FromArgb(50, 117, 168, 187));
             themeIcon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "AiryAccent");
-            ThemeButton.ToolTip = "クラシックデザインへ切替（Ctrl+Shift+D）";
+            ThemeButton.ToolTip = "クラシックデザインへ切替（Ctrl+Shift+Z）";
         }
         else
         {
@@ -82,7 +82,7 @@ internal sealed class WindowTitleBar : DockPanel
             themeIcon.Data = Geometry.Parse("M 6.5,0.5 L 7.8,4.8 L 12.5,6.5 L 7.8,8.2 L 6.5,12.5 L 5.2,8.2 L 0.5,6.5 L 5.2,4.8 Z");
             themeIcon.Fill = new SolidColorBrush(Color.FromArgb(80, 255, 255, 255));
             themeIcon.Stroke = Brushes.White;
-            ThemeButton.ToolTip = "モダンデザインへ切替（Ctrl+Shift+D）";
+            ThemeButton.ToolTip = "モダンデザインへ切替（Ctrl+Shift+Z）";
         }
     }
 

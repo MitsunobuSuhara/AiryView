@@ -1459,7 +1459,7 @@ public partial class MainWindow : Window
     {
         if (Keyboard.Modifiers == ModifierKeys.Alt && (e.Key == Key.Z || e.SystemKey == Key.Z)) { ToggleWrap(s, e); e.Handled = true; return; }
         if (e.Key == Key.F3 && CurrentText != null) { if (TextSearchBar.Visibility != Visibility.Visible) ShowTextSearch(); else MoveTextMatch(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1); e.Handled = true; return; }
-        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.D) { ThemeManager.Toggle(this); e.Handled = true; return; }
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == ThemeManager.ToggleKey) { ThemeManager.Toggle(this); e.Handled = true; return; }
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.M) { MarkdownModeClick(s, e); e.Handled = true; return; }
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.T) { RestoreClosedTab(s, e); e.Handled = true; return; }
         if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.S)

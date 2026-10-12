@@ -12,6 +12,7 @@ public enum AppTheme
 
 public static class ThemeManager
 {
+    internal const System.Windows.Input.Key ToggleKey = System.Windows.Input.Key.Z;
     public static AppTheme CurrentTheme { get; private set; } = AppTheme.Modern;
     public static event Action<AppTheme>? ThemeChanged;
 
