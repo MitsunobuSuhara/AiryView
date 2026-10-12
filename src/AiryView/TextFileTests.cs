@@ -55,6 +55,28 @@ internal static class TextFileTests
             Capture(reopened, System.IO.Path.Combine(folder, fixture.Name + ".png"));
             reopened.Close();
         }
+        foreach (var encoding in new Encoding[] { new UTF8Encoding(true), new UnicodeEncoding(false, true), Encoding.GetEncoding(932) })
+        {
+            string path = System.IO.Path.Combine(folder, $"read-only-{encoding.CodePage}.LOG");
+            string text = "[INFO] 日本語の処理記録\r\n[ERROR] エラーの確認\r\n";
+            File.WriteAllText(path, text, encoding);
+            byte[] original = File.ReadAllBytes(path);
+            var logWindow = new MainWindow(); logWindow.Show();
+            try
+            {
+                await logWindow.OpenDroppedPathsAsync([path]); logWindow.UpdateLayout();
+                var editor = (TextBox)logWindow.FindName("TextEditor");
+                Check(editor.IsVisible && editor.IsReadOnly && editor.Text == text, $"ログ{encoding.CodePage}: 閲覧専用でドロップから開く");
+                Check(logWindow.SearchTextForTest("エラー") == 1, $"ログ{encoding.CodePage}: 日本語を検索");
+                Check(((Button)logWindow.FindName("SaveTextButton")).Visibility == Visibility.Collapsed && !logWindow.SaveTextForTest(), $"ログ{encoding.CodePage}: 保存を禁止");
+                editor.Text = "変更を試す";
+                Check(!logWindow.SaveTextToPathForTest(path) && File.ReadAllBytes(path).SequenceEqual(original), $"ログ{encoding.CodePage}: 原本のBOM・文字コード・改行を維持");
+                await logWindow.OpenPathsAsync([System.IO.Path.Combine(folder, "utf8.JSON")]);
+                Check(!editor.IsReadOnly, $"ログ{encoding.CodePage}: 編集可能な文書へ切り替えると編集を復元");
+            }
+            finally { logWindow.Close(); }
+        }
+        Check(TextFileFormats.OpenFilter.Contains("*.log"), "開くダイアログでログを選べる");
         var dropWindow = new MainWindow(); dropWindow.Show();
         foreach (string name in new[] { "utf8.JSON", "bom.CSV" })
         {

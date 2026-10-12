@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         public bool IsMarkdown => new[] { ".md", ".markdown" }.Contains(System.IO.Path.GetExtension(Path), StringComparer.OrdinalIgnoreCase);
         public bool SourceMode;
         public bool Wrap;
-        public bool CanEdit => Editable || IsMarkdown;
+        public bool CanEdit => !TextFileFormats.IsLog(Path) && (Editable || IsMarkdown);
         public bool ShowEditor => Editable || IsMarkdown && SourceMode;
         public bool Dirty;
         public string? TokenText, TokenSelection, TokenErrorText;
@@ -534,6 +534,7 @@ public partial class MainWindow : Window
         Viewer.Visibility = state != null ? Visibility.Visible : Visibility.Collapsed;
         MarkdownViewer.Visibility = textDocument?.IsMarkdown == true && !textDocument.SourceMode ? Visibility.Visible : Visibility.Collapsed;
         TextEditorArea.Visibility = textDocument?.ShowEditor == true ? Visibility.Visible : Visibility.Collapsed;
+        TextEditor.IsReadOnly = textDocument?.CanEdit != true;
         TextSelectionBadge.Visibility = Visibility.Collapsed;
         SaveTextButton.Visibility = textDocument?.CanEdit == true ? Visibility.Visible : Visibility.Collapsed;
         MarkdownModeButton.Visibility = textDocument?.IsMarkdown == true ? Visibility.Visible : Visibility.Collapsed;
@@ -881,7 +882,7 @@ public partial class MainWindow : Window
     private void UpdateNonPdfStatus()
     {
         if (CurrentText is { } text)
-            Status.Text = text.IsMarkdown ? $"{System.IO.Path.GetFileName(text.Path)}  ·  {(text.SourceMode ? "ソース編集" : "プレビュー")}  ·  Ctrl＋Shift＋Mで切替" : $"{(string.IsNullOrEmpty(text.Path) ? "無題.txt" : System.IO.Path.GetFileName(text.Path))}  ·  編集可能  ·  Ctrl＋Sで保存";
+            Status.Text = text.IsMarkdown ? $"{System.IO.Path.GetFileName(text.Path)}  ·  {(text.SourceMode ? "ソース編集" : "プレビュー")}  ·  Ctrl＋Shift＋Mで切替" : $"{(string.IsNullOrEmpty(text.Path) ? "無題.txt" : System.IO.Path.GetFileName(text.Path))}  ·  {(TextFileFormats.IsLog(text.Path) ? "閲覧専用" : "編集可能  ·  Ctrl＋Sで保存")}";
         else if (CurrentImage is { } image) Status.Text = $"{System.IO.Path.GetFileName(image.Path)}  ·  {image.DisplayWidth} × {image.DisplayHeight} px  ·  表示 {image.Zoom * 100:0.##}%";
     }
     private void ToggleWrap(object s, RoutedEventArgs e) => ToggleWrapForTest();
@@ -1208,7 +1209,7 @@ public partial class MainWindow : Window
     internal bool SaveTextToPathForTest(string destination) => CurrentText is { CanEdit: true } text && SaveTextToPath(text, destination);
     private void TextEditorChanged(object s, TextChangedEventArgs e)
     {
-        if (opening || CurrentText is not { ShowEditor: true } state) return;
+        if (opening || CurrentText is not { ShowEditor: true, CanEdit: true } state) return;
         state.LiveText = TextEditor.Text;
         state.Dirty = state.LiveText != state.Text; UpdateTextTabTitle(state);
         UpdateTextSmartStatus();
