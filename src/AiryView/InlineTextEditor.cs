@@ -35,6 +35,10 @@ internal sealed class InlineTextEditor : Border
     private bool applyingFormat;
     private bool fittingHeight;
     private bool formattingRequested;
+    private bool fixedHeight;
+    private Point? dragPointer;
+    private Rect dragBox;
+    private readonly EditorCaretIndicator caretIndicator;
     private Window? owner;
     private Point lastScreenPoint;
     private Size lastEditorSize;
@@ -52,6 +56,10 @@ internal sealed class InlineTextEditor : Border
     internal FrameworkElement ResizeHandleForTest => resizeGrips[4];
     internal IReadOnlyList<Thumb> ResizeHandlesForTest => resizeGrips;
     internal IReadOnlyList<Thumb> MoveEdgesForTest => moveEdges;
+    internal Rect CaretForTest => caretIndicator.CaretForTest;
+    internal void BeginDragForTest(Point point) => BeginPointerDrag(point);
+    internal void DragToForTest(Point point, int? grip = null) => DragTo(point, grip);
+    internal void EndDragForTest() { dragPointer = null; }
     internal int ColorChoiceCountForTest => colorPalette.ChoiceCount;
     internal bool ColorPaletteGridForTest => colorPalette.Columns == 4 && colorPalette.SwatchesOnly;
     internal FrameworkElement ColorPaletteVisualForTest => colorPalette.Visual;
@@ -61,6 +69,7 @@ internal sealed class InlineTextEditor : Border
     internal void MoveForTest(double x, double y) => MoveTo(x, y);
     internal void SetBoxFromDrag(Point start, Point end)
     {
+        fixedHeight = true;
         Rect box = new(start, end);
         double minWidth = Math.Min(bounds.Width, Math.Max(70 / zoom, Input.FontSize * 3));
         double margin = inset + padding;
@@ -79,6 +88,7 @@ internal sealed class InlineTextEditor : Border
     internal InlineTextEditor(Point position, string text, double fontSize, Color ink, double zoom, Size bounds, Action accept, Action cancel, Action? remove = null, TextSegment[]? segments = null, double? boxWidth = null, double? boxHeight = null)
     {
         this.bounds = bounds; this.zoom = zoom;
+        fixedHeight = boxHeight.HasValue;
         this.remove = remove; ObjectSelected = remove != null; Focusable = true;
         inset = 1 / zoom; padding = 4 / zoom;
         BorderBrush = new SolidColorBrush(Color.FromRgb(59, 130, 246)); BorderThickness = new Thickness(inset);
@@ -100,7 +110,7 @@ internal sealed class InlineTextEditor : Border
         moveEdges = Enumerable.Range(0, 4).Select(_ => CreateMoveEdge()).ToArray();
         foreach (Thumb edge in moveEdges)
         {
-            edge.DragDelta += (_, e) => { MoveTo(Canvas.GetLeft(this) + e.HorizontalChange / this.zoom, Canvas.GetTop(this) + e.VerticalChange / this.zoom); e.Handled = true; };
+            ConfigureDrag(edge, null);
             handleLayer.Children.Add(edge);
         }
         resizeGrips = Enumerable.Range(0, 8).Select(CreateResizeGrip).ToArray();
@@ -112,7 +122,8 @@ internal sealed class InlineTextEditor : Border
         shortcutHint = new TextBlock { Text = remove == null ? "Ctrl+Enterで確定" : "Ctrl+Enterで確定  ·  Deleteで削除（枠選択時）",
             FontSize = 10 / zoom, Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140)), Margin = new Thickness(0, 3 / zoom, 0, 0), IsHitTestVisible = false };
         Grid.SetRow(shortcutHint, 1); Grid.SetRowSpan(handleLayer, 2);
-        content.Children.Add(Input); content.Children.Add(shortcutHint); content.Children.Add(handleLayer); Child = content;
+        caretIndicator = new EditorCaretIndicator(Input, () => this.zoom);
+        content.Children.Add(Input); content.Children.Add(caretIndicator); content.Children.Add(shortcutHint); content.Children.Add(handleLayer); Child = content;
         formatPopup = new Popup { Child = formatHandle, PlacementTarget = this, Placement = PlacementMode.Bottom,
             VerticalOffset = 11, AllowsTransparency = true, StaysOpen = true };
 
@@ -186,6 +197,7 @@ internal sealed class InlineTextEditor : Border
         zoom = value; lastEditorSize = default;
         shortcutHint.FontSize = 10 / zoom; shortcutHint.Margin = new Thickness(0, 3 / zoom, 0, 0);
         foreach (Thumb grip in resizeGrips) grip.Template = ResizeGripTemplate();
+        caretIndicator.InvalidateVisual();
         PositionHandles(); RepositionPalette();
     }
     private static Thumb CreateMoveEdge()
@@ -202,8 +214,48 @@ internal sealed class InlineTextEditor : Border
             Cursors.SizeNWSE, Cursors.SizeNS, Cursors.SizeNESW, Cursors.SizeWE];
         var grip = new Thumb { Cursor = cursors[index], ToolTip = "ドラッグして文字枠の大きさを変更",
             Width = 14 / zoom, Height = 14 / zoom, Template = ResizeGripTemplate() };
-        grip.DragDelta += (_, e) => { ResizeFromGrip(index, e.HorizontalChange / zoom, e.VerticalChange / zoom); e.Handled = true; };
+        ConfigureDrag(grip, index);
         return grip;
+    }
+    private void ConfigureDrag(Thumb thumb, int? grip)
+    {
+        thumb.DragStarted += (_, e) =>
+        {
+            if (Parent is not UIElement parent) return;
+            BeginPointerDrag(Mouse.GetPosition(parent));
+            ObjectSelected = true; Focus(); HidePalette(null, EventArgs.Empty);
+            e.Handled = true;
+        };
+        thumb.DragDelta += (_, e) =>
+        {
+            // 動くThumb自身の座標ではなく、変化しない用紙座標で開始点から測る。
+            Point pointer = dragPointer.HasValue && Parent is UIElement parent
+                ? Mouse.GetPosition(parent) : new Point(e.HorizontalChange, e.VerticalChange);
+            DragTo(pointer, grip);
+            e.Handled = true;
+        };
+        thumb.DragCompleted += (_, e) => { dragPointer = null; ShowPalette(null, EventArgs.Empty); e.Handled = true; };
+    }
+    private void BeginPointerDrag(Point pointer)
+    {
+        dragPointer = pointer;
+        dragBox = new Rect(Canvas.GetLeft(this), Canvas.GetTop(this), Width, Input.Height);
+    }
+    private void DragTo(Point pointer, int? grip)
+    {
+        Vector delta = dragPointer is Point start ? pointer - start : (Vector)pointer;
+        if (dragPointer.HasValue)
+        {
+            Canvas.SetLeft(this, dragBox.Left); Canvas.SetTop(this, dragBox.Top);
+            Width = dragBox.Width; Input.Height = dragBox.Height;
+        }
+        if (grip.HasValue) ResizeFromGrip(grip.Value, delta.X, delta.Y);
+        else
+        {
+            // 移動中は枠幅を変えず、改行位置と反対側の辺を安定させる。
+            Canvas.SetLeft(this, Math.Clamp(Canvas.GetLeft(this) + delta.X, -inset-padding-InputTextLeftInset, Math.Max(0, bounds.Width-Width)));
+            Canvas.SetTop(this, Math.Clamp(Canvas.GetTop(this) + delta.Y, -inset-padding, Math.Max(0, bounds.Height-ActualHeight)));
+        }
     }
     private ControlTemplate ResizeGripTemplate()
     {
@@ -216,7 +268,7 @@ internal sealed class InlineTextEditor : Border
     private void PositionHandles()
     {
         double width = handleLayer.ActualWidth, height = handleLayer.ActualHeight;
-        double edge = 8 / zoom, diameter = 14 / zoom;
+        double edge = 6 / zoom, diameter = 14 / zoom;
         foreach (Thumb grip in resizeGrips) grip.Width = grip.Height = diameter;
         if (width <= 0 || height <= 0) return;
         for (int i = 0; i < moveEdges.Length; i++)
@@ -224,8 +276,8 @@ internal sealed class InlineTextEditor : Border
             var strip = moveEdges[i];
             strip.Width = i % 2 == 0 ? width : edge;
             strip.Height = i % 2 == 0 ? edge : height;
-            Canvas.SetLeft(strip, i == 1 ? width - edge : 0);
-            Canvas.SetTop(strip, i == 2 ? height - edge : 0);
+            Canvas.SetLeft(strip, i == 1 ? width - edge / 2 : i == 3 ? -edge / 2 : 0);
+            Canvas.SetTop(strip, i == 2 ? height - edge / 2 : i == 0 ? -edge / 2 : 0);
         }
         Point[] centers = [new(0, 0), new(width / 2, 0), new(width, 0), new(width, height / 2),
             new(width, height), new(width / 2, height), new(0, height), new(0, height / 2)];
@@ -238,6 +290,7 @@ internal sealed class InlineTextEditor : Border
     }
     private void ResizeFromGrip(int index, double dx, double dy)
     {
+        fixedHeight = true;
         double left = Canvas.GetLeft(this), top = Canvas.GetTop(this), margin = inset + padding;
         double minWidth = Math.Min(bounds.Width, Math.Max(70 / zoom, Input.FontSize * 3));
         double minHeight = Input.FontSize * 1.3;
@@ -326,12 +379,12 @@ internal sealed class InlineTextEditor : Border
     }
     private void QueueFitHeight()
     {
-        if (fittingHeight) return;
+        if (fittingHeight || fixedHeight) return;
         fittingHeight = true;
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
         {
             fittingHeight = false;
-            if (!Input.IsLoaded) return;
+            if (!Input.IsLoaded || fixedHeight || dragPointer.HasValue) return;
             double needed = Input.ExtentHeight + 4 / zoom;
             if (needed > Input.Height + 1) Input.Height = Math.Min(Input.MaxHeight, needed);
         });

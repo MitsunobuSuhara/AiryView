@@ -268,9 +268,9 @@ internal static class VisualEditorTests
             Check(Math.Abs(caretPoint.X - rightText.Mark.Start.X) < .5,
                 "committed text starts at the same horizontal position as the editable text");
             var beforeMove = rightText.Mark;
-            rightText.MoveEdgesForTest[0].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(12, 0)
+            rightText.MoveEdgesForTest[0].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(-12, 0)
                 { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
-            Check(Math.Abs(rightText.Mark.Start.X - beforeMove.Start.X - 12) < .5 && rightText.PlainText == beforeMove.Text,
+            Check(Math.Abs(rightText.Mark.Start.X - beforeMove.Start.X + 12) < .5 && rightText.PlainText == beforeMove.Text,
                 "dragging the frame edge moves the text without changing its content");
             double beforeWidth = rightText.Width, beforeHeight = rightText.Input.Height;
             rightText.ResizeHandlesForTest[4].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(18, 10)
@@ -286,6 +286,73 @@ internal static class VisualEditorTests
             await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             Check(Math.Abs(rightText.ResizeHandleForTest.ActualWidth * 2.5 - 14) < 1,
                 "resize circle retains its screen size at increased page zoom");
+            rightText.MoveForTest(30, 30);
+            rightText.ResizeHandlesForTest[4].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(-100, 30)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+            double zoomLeft = Canvas.GetLeft(rightText), zoomTop = Canvas.GetTop(rightText), zoomWidth = rightText.Width;
+            for (int step = 0; step < 4; step++)
+                rightText.MoveEdgesForTest[0].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(5, 3)
+                    { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+            Check(Math.Abs(Canvas.GetLeft(rightText) - zoomLeft - 20) < .5
+                && Math.Abs(Canvas.GetTop(rightText) - zoomTop - 12) < .5 && rightText.Width == zoomWidth,
+                "zoomed dragging uses page coordinates once and preserves frame dimensions");
+            double rightAnchor = Canvas.GetLeft(rightText) + rightText.Width;
+            double bottomAnchor = Canvas.GetTop(rightText) + rightText.Input.Height;
+            rightText.ResizeHandlesForTest[0].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(12, 8)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+            Check(Math.Abs(Canvas.GetLeft(rightText) + rightText.Width - rightAnchor) < .5
+                && Math.Abs(Canvas.GetTop(rightText) + rightText.Input.Height - bottomAnchor) < .5,
+                "top-left resizing keeps the opposite corner fixed at increased zoom");
+            double manualHeight = rightText.Input.Height;
+            rightText.PlainText = string.Join("\n", Enumerable.Repeat("高さを固定した文字ボックス", 12));
+            await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Check(rightText.Input.Height == manualHeight && rightText.Input.ExtentHeight > manualHeight,
+                "typing into a manually resized box scrolls instead of undoing its height");
+            rightText.PlainText = "入力位置"; rightText.Input.Focus();
+            await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Check(!rightText.CaretForTest.IsEmpty && rightText.CaretForTest.Height > 0,
+                "focused text displays a steady contrasting caret independent of ink color");
+            textCanvas.LayoutTransform = Transform.Identity; rightText.UpdateZoom(1);
+            SavePreview(textHost, folder + "/text-box-caret.png");
+            rightText.Focus();
+            await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Check(rightText.CaretForTest.IsEmpty, "object selection hides the text caret");
+            var stable = new InlineTextEditor(new Point(60, 60), "移動・サイズ変更の確認", 14, Colors.Yellow, 1.5,
+                new Size(400, 300), () => { }, () => { }, boxWidth: 190, boxHeight: 60);
+            double stableLeft = Canvas.GetLeft(stable), stableTop = Canvas.GetTop(stable);
+            stable.BeginDragForTest(new Point(100, 100));
+            stable.DragToForTest(new Point(120, 110));
+            stable.DragToForTest(new Point(120, 110));
+            Check(Math.Abs(Canvas.GetLeft(stable) - stableLeft - 20) < .01
+                && Math.Abs(Canvas.GetTop(stable) - stableTop - 10) < .01,
+                "repeated mouse positions do not accumulate movement or cause drag feedback");
+            stable.DragToForTest(new Point(999, 999));
+            stable.DragToForTest(new Point(100, 100)); stable.EndDragForTest();
+            Check(Canvas.GetLeft(stable) == stableLeft && Canvas.GetTop(stable) == stableTop,
+                "returning from the page boundary restores the original drag position without drift");
+            for (int grip = 0; grip < 8; grip++)
+            {
+                double left = Canvas.GetLeft(stable), top = Canvas.GetTop(stable), width = stable.Width, height = stable.Input.Height;
+                stable.BeginDragForTest(new Point(100, 100));
+                stable.DragToForTest(new Point(106, 104), grip);
+                stable.DragToForTest(new Point(106, 104), grip);
+                bool horizontal = grip != 1 && grip != 5, vertical = grip != 3 && grip != 7;
+                bool leftGrip = grip is 0 or 6 or 7, topGrip = grip is 0 or 1 or 2;
+                Check(Math.Abs(stable.Width - width - (horizontal ? leftGrip ? -6 : 6 : 0)) < .01
+                    && Math.Abs(stable.Input.Height - height - (vertical ? topGrip ? -4 : 4 : 0)) < .01
+                    && Math.Abs(Canvas.GetLeft(stable) - left - (leftGrip ? 6 : 0)) < .01
+                    && Math.Abs(Canvas.GetTop(stable) - top - (topGrip ? 4 : 0)) < .01,
+                    $"resize handle {grip} tracks the pointer once and anchors the opposite edges");
+                stable.DragToForTest(new Point(100, 100), grip); stable.EndDragForTest();
+            }
+            if (Environment.GetEnvironmentVariable("AIRYVIEW_TEXTBOX_REVIEW") == "1")
+            {
+                textCanvas.Children.Clear(); textCanvas.Children.Add(stable);
+                textCanvas.LayoutTransform = new ScaleTransform(1.5, 1.5);
+                textHost.Width = 760; textHost.Height = 650; textHost.Title = "AiryView 文字ボックス操作確認";
+                stable.Input.Focus();
+                await Task.Delay(TimeSpan.FromMinutes(3));
+            }
         }
         finally { textHost.Close(); }
         var formatHandle = edgeText.FormatHandleSizeForTest;
