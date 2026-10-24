@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace AiryView;
 
-public sealed partial class PdfDocument
+internal sealed partial class NativePdfDocument
 {
     // 起動時には解析せず、クリック時だけ調べる。外部URI・ファイルは実行しない。
     internal int InternalLinkPageAt(int index, Point relative)

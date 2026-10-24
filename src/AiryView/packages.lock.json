@@ -4,9 +4,9 @@
     "net10.0-windows7.0": {
       "bblanchon.PDFium.Win32": {
         "type": "Direct",
-        "requested": "[155.0.8044, )",
-        "resolved": "155.0.8044",
-        "contentHash": "TBqSYojufnh6IvzIZmsWrNwuHXMtk47AYxQPcUzVVSE971dz/dyQkdal6Z4CpFEstTE6n387NU98XYGVZCcKWA=="
+        "requested": "[158.0.8111, )",
+        "resolved": "158.0.8111",
+        "contentHash": "+e5VgLjNYxSr31l7nOyo9qchHjIpD+F8IjZztGe5oaXjmy7KBw9yoal/UtoQR5JD69pfGyf9VXp1jgZZxD7Nbg=="
       },
       "Microsoft.Bcl.Memory": {
         "type": "Direct",
@@ -163,9 +163,9 @@
     "net10.0-windows7.0/win-x64": {
       "bblanchon.PDFium.Win32": {
         "type": "Direct",
-        "requested": "[155.0.8044, )",
-        "resolved": "155.0.8044",
-        "contentHash": "TBqSYojufnh6IvzIZmsWrNwuHXMtk47AYxQPcUzVVSE971dz/dyQkdal6Z4CpFEstTE6n387NU98XYGVZCcKWA=="
+        "requested": "[158.0.8111, )",
+        "resolved": "158.0.8111",
+        "contentHash": "+e5VgLjNYxSr31l7nOyo9qchHjIpD+F8IjZztGe5oaXjmy7KBw9yoal/UtoQR5JD69pfGyf9VXp1jgZZxD7Nbg=="
       },
       "HarfBuzzSharp.NativeAssets.Linux": {
         "type": "Transitive",

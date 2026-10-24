@@ -20,7 +20,21 @@ public partial class App : System.Windows.Application
     private CancellationTokenSource? pipeCancellation;
     protected override async void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Contains("--pdf-worker"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try { Shutdown(PdfWorker.Run()); } catch { Shutdown(1); }
+            return;
+        }
         base.OnStartup(e);
+        if (e.Args.Contains("--security-test"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            try { await Task.Run(PdfSecurityTests.Run); Shutdown(0); }
+            catch (Exception ex) { Directory.CreateDirectory("artifacts/pdf-security"); File.WriteAllText("artifacts/pdf-security/security-test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
         if (e.Args.Contains("--welcome-test"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

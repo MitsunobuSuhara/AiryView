@@ -5,7 +5,7 @@ namespace AiryView;
 internal sealed record PdfDrawingPage(int Index, double Width, double Height, PdfDrawingShape[] Shapes);
 internal sealed record PdfDrawingShape(PathGeometry Geometry, Color Color);
 
-public sealed partial class PdfDocument
+internal sealed partial class NativePdfDocument
 {
     // 閲覧用ドキュメントには触れず、回転を含む現在の状態を複製して保存する。
     internal void SaveDrawings(string destination, IReadOnlyList<PdfDrawingPage> drawings)
@@ -17,7 +17,7 @@ public sealed partial class PdfDocument
         try
         {
             SaveCopy(snapshot, false);
-            using var copy = new PdfDocument(snapshot, Password);
+            using var copy = new NativePdfDocument(snapshot, Password);
             foreach (var drawing in drawings) copy.AddDrawing(drawing);
             copy.SaveCopy(destination);
         }

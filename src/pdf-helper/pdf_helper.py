@@ -9,6 +9,8 @@ def reader_for(q):
     r = PdfReader(q['source'])
     if r.is_encrypted and not r.decrypt(q.get('password', '')):
         raise ValueError('PDFのパスワードが正しくありません。')
+    if len(r.pages) > 10000:
+        raise ValueError('PDFは10,000ページ以内にしてください。')
     return r
 
 
@@ -185,6 +187,8 @@ def verify_pdf(q):
 
 def main():
     q=json.load(sys.stdin)
+    if not 0 < os.path.getsize(q['source']) <= 128 * 1024 * 1024:
+        raise ValueError('PDFは128MB以内にしてください。')
     if q['operation'] in ('write','sign'):
         source=os.path.normcase(os.path.realpath(q['source']));dest=os.path.normcase(os.path.realpath(q['destination']))
         if source==dest:raise ValueError('元のPDFとは別の保存先を指定してください。')
