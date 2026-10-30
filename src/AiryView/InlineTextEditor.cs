@@ -57,6 +57,7 @@ internal sealed class InlineTextEditor : Border
     internal IReadOnlyList<Thumb> ResizeHandlesForTest => resizeGrips;
     internal IReadOnlyList<Thumb> MoveEdgesForTest => moveEdges;
     internal Rect CaretForTest => caretIndicator.CaretForTest;
+    internal bool CaretVisibleForTest => caretIndicator.VisibleForTest;
     internal void BeginDragForTest(Point point) => BeginPointerDrag(point);
     internal void DragToForTest(Point point, int? grip = null) => DragTo(point, grip);
     internal void EndDragForTest() { dragPointer = null; }
@@ -94,7 +95,7 @@ internal sealed class InlineTextEditor : Border
         BorderBrush = new SolidColorBrush(Color.FromRgb(59, 130, 246)); BorderThickness = new Thickness(inset);
         CornerRadius = new CornerRadius(4 / zoom); Padding = new Thickness(padding); Background = Brushes.Transparent;
         Ink = ink;
-        Input = new RichTextBox { AcceptsReturn = true, FontSize = fontSize, Foreground = new SolidColorBrush(ink),
+        Input = new RichTextBox { AcceptsReturn = true, FontSize = fontSize, Foreground = new SolidColorBrush(ink), CaretBrush = Brushes.Transparent,
             FontFamily = new FontFamily("MS Gothic"), BorderThickness = new Thickness(0), Padding = new Thickness(0),
             Background = Brushes.Transparent, MinHeight = fontSize * 1.3, Height = Math.Max(fontSize * 1.6, 24 / zoom),
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,

@@ -311,7 +311,17 @@ internal static class VisualEditorTests
             rightText.PlainText = "入力位置"; rightText.Input.Focus();
             await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             Check(!rightText.CaretForTest.IsEmpty && rightText.CaretForTest.Height > 0,
-                "focused text displays a steady contrasting caret independent of ink color");
+                "focused text displays a contrasting caret independent of ink color");
+            bool initialCaret = rightText.CaretVisibleForTest;
+            bool blinked = false;
+            for (int i = 0; i < 20 && !blinked; i++)
+            {
+                await System.Threading.Tasks.Task.Delay(60);
+                blinked = rightText.CaretVisibleForTest != initialCaret;
+            }
+            Check(blinked, "focused text caret changes visibility while idle");
+            rightText.Input.CaretPosition = rightText.Input.Document.ContentStart;
+            Check(rightText.CaretVisibleForTest, "moving the insertion position immediately restores the caret");
             textCanvas.LayoutTransform = Transform.Identity; rightText.UpdateZoom(1);
             SavePreview(textHost, folder + "/text-box-caret.png");
             rightText.Focus();
