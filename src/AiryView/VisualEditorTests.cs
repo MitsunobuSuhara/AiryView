@@ -65,6 +65,22 @@ internal static class VisualEditorTests
     internal static async Task RunAsync(bool imagesOnly = false)
     {
         string folder = System.IO.Path.GetFullPath("artifacts/editor-tests"); Directory.CreateDirectory(folder);
+        var thinField = new TextBox { Text = "1" };
+        var thinControls = (StackPanel)FontSizeControls.Wrap(thinField, stroke: true);
+        var thinner = (System.Windows.Controls.Primitives.RepeatButton)((Grid)thinControls.Children[1]).Children[1];
+        foreach (double expected in new[] { .75, .5, .25, .25 })
+        {
+            thinner.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(double.Parse(thinField.Text) == expected, "stroke decrease reaches and stops at quarter-unit width: " + expected);
+        }
+        FontSizeControls.Step(thinField, 1, stroke: true);
+        Check(double.Parse(thinField.Text) == .5, "stroke increase uses quarter-unit steps");
+        var fontField = new TextBox { Text = "1" }; FontSizeControls.Step(fontField, -1);
+        Check(fontField.Text == "1", "font minimum remains one with whole-unit steps");
+        var fineArrow = new EditMark("arrow", new(20, 40), new(100, 40), "", Colors.Black, .25);
+        var fineOutline = EditDrawing.Outline(fineArrow, 120, 80);
+        Check(fineOutline.FillContains(new Point(50, 40.05), .001, ToleranceType.Absolute) && !fineOutline.FillContains(new Point(50, 40.2), .001, ToleranceType.Absolute),
+            "quarter-unit arrow shaft geometry stays below one unit");
         var visual = new DrawingVisual(); using (var dc = visual.RenderOpen()) dc.DrawRectangle(Brushes.Red, null, new Rect(0, 0, 40, 60));
         var bitmap = new RenderTargetBitmap(120, 80, 96, 96, PixelFormats.Pbgra32); bitmap.Render(visual); bitmap.Freeze();
         var model = new VisualEditModel(bitmap, 120, 80);
@@ -574,8 +590,14 @@ internal static class VisualEditorTests
         {
             var pdfArrows = new VisualEditModel(null, 595.2756, 841.8898);
             foreach (var arrow in arrowCases) pdfArrows.Add(arrow);
+            pdfArrows.Add(new("arrow", new(100, 300), new(200, 300), "", Colors.Black, .25));
+            pdfArrows.Add(new("arrow", new(100, 320), new(200, 320), "", Colors.Black, 1));
             await VisualEditorWindow.SavePdfAsync(arrowPdf, new Dictionary<int, VisualEditModel> { [0] = pdfArrows }, folder + "/arrow-tips.pdf");
             using var saved = new PdfDocument(folder + "/arrow-tips.pdf"); var render = saved.Render(0, 595, 842);
+            var fineRender = saved.Render(0, 2381, 3368);
+            int DarkRows(int centerY) => Enumerable.Range(centerY - 8, 17).Count(y => Pixel(fineRender, 600, y).R < 180);
+            Check(DarkRows(1200) > 0 && DarkRows(1200) < DarkRows(1280),
+                "saved and reopened PDF preserves a quarter-point arrow thinner than one point");
             foreach (var arrow in arrowCases)
             {
                 Vector direction = arrow.End - arrow.Start; direction.Normalize(); Point outside = arrow.End + direction * 3;
