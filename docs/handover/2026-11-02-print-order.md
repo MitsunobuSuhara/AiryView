@@ -6,10 +6,10 @@
 - 選択をPrinterSettings.Collateへ反映。複数部の概要欄にも選択中の順を表示。
 - publish成功（既存WFO0003警告のみ）。UI164件成功。3部とCollate=falseの同時反映、部単位への復帰を検証。物理プリンターへの印刷は行っていない。
 - ログ: `C:\dev\projects\utilities\AiryView\artifacts\ui-test-results.txt`。
+- 利用者が閉じた後、導入終了0。Program Filesの2.1.75.0と候補DLLが一致し、導入版UI164件も成功。実装75803faをpush済み。
 
 ## 次に着手すべき
 
-- 利用者へ保存して閉じるよう依頼済み。応答後 `artifacts/print-order/app/AiryView.exe --install-quiet` を管理者で実行し、導入版一致と検証結果を記録する。
 - 実際のApeos C3571で3ページ3部をページ単位指定して、紙の順番を確認する。ドライバーに渡す設定まで検証済み。
 
 ## 重要な設計原則・未確定論点
