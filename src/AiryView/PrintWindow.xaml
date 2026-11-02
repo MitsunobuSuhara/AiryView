@@ -28,6 +28,7 @@
    <ComboBox x:Name="DuplexBox" SelectedIndex="0" SelectionChanged="SettingsChanged"><ComboBoxItem Content="片面"/><ComboBoxItem Content="両面・長辺とじ"/><ComboBoxItem Content="両面・短辺とじ"/></ComboBox>
    <WrapPanel><TextBlock Text="部数" Width="108"/><TextBox x:Name="CopiesBox" PreviewKeyDown="NumberKeyDown" PreviewMouseLeftButtonDown="NumberClicked" GotKeyboardFocus="NumberFocused" Width="110" Text="1" TextChanged="SettingsChanged"/><StackPanel><Button Content="▲" Tag="CopiesBox:1" Click="NumberStepClick" Padding="6,0" Margin="0,1" FontSize="10" ToolTip="1増やす"/><Button Content="▼" Tag="CopiesBox:-1" Click="NumberStepClick" Padding="6,0" Margin="0,1" FontSize="10" ToolTip="1減らす"/></StackPanel></WrapPanel>
    <TextBlock Text="複数部の印刷順" Margin="4,10,4,4"/>
+   <TextBlock Text="例：3ページの文書を複数部印刷する場合（数字はページ番号）" TextWrapping="Wrap" Foreground="{DynamicResource AiryInkSecondary}" FontSize="12" Margin="4,0,4,4"/>
    <ComboBox x:Name="CopyOrderBox" SelectedIndex="0" SelectionChanged="SettingsChanged">
     <ComboBoxItem Content="部単位：1,2,3 → 1,2,3"/><ComboBoxItem Content="ページ単位：1,1,1 → 2,2,2"/>
    </ComboBox>

@@ -817,6 +817,8 @@ public static class SelfTest
         await print.RefreshAsync();
         Check(printButton.IsEnabled && jobPrinter.PrinterSettings.Copies == 3 && !jobPrinter.PrinterSettings.Collate
             && ((TextBlock)print.FindName("Summary")).Text.Contains("ページ単位で印刷"), "3部のページ単位指定をプリンター設定と表示に反映");
+        copyOrder.BringIntoView();
+        await print.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Capture(print, "artifacts/print-page-order.png");
         copyOrder.SelectedIndex = 0;
         await print.RefreshAsync();
