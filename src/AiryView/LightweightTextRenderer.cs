@@ -21,7 +21,7 @@ public static class LightweightTextRenderer
             if (Regex.IsMatch(line, "^(-{3,}|\\*{3,})$")) { FlushParagraph(); FlushList(); doc.Blocks.Add(new BlockUIContainer(new Separator()) { Margin = new Thickness(0, 12, 0, 18) }); continue; }
             var bullet = Regex.Match(line, "^[-*]\\s+(.+)$");
             if (bullet.Success) { FlushParagraph(); var p = new Paragraph(); AddInline(p.Inlines, bullet.Groups[1].Value); list.ListItems.Add(new ListItem(p)); continue; }
-            if (line.StartsWith("> ")) { FlushParagraph(); FlushList(); var p = new Paragraph { Margin = new Thickness(18, 4, 10, 16), Padding = new Thickness(16, 10, 12, 10), Background = new SolidColorBrush(Color.FromRgb(242, 244, 247)) }; AddInline(p.Inlines, line[2..]); doc.Blocks.Add(p); continue; }
+            if (line.StartsWith("> ")) { FlushParagraph(); FlushList(); var p = new Paragraph { Margin = new Thickness(18, 4, 10, 16), Padding = new Thickness(16, 10, 12, 10) }; p.SetResourceReference(TextElement.BackgroundProperty, "AiryQuoteBackground"); AddInline(p.Inlines, line[2..]); doc.Blocks.Add(p); continue; }
             paragraph.Add(line);
         }
         FlushParagraph(); FlushList(); return doc;

@@ -4,6 +4,7 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media.Effects;
+using System.Windows.Automation;
 using ShapePath = System.Windows.Shapes.Path;
 using Microsoft.Win32;
 
@@ -15,9 +16,9 @@ internal sealed class ToolIconConverter : IValueConverter
     {
         "文字" => Geometry.Parse("M 4,2 L 16,2 Q 18,2 18,4 L 18,16 Q 18,18 16,18 L 4,18 Q 2,18 2,16 L 2,4 Q 2,2 4,2 Z M 5,6 L 15,6 M 10,6 L 10,14"),
         "矢印" => Geometry.Parse("M 3,16 L 16,3 M 9,3 L 16,3 L 16,10"),
-        "線" => Geometry.Parse("M 5,15 L 15,5 M 2,14 L 5,14 L 5,17 L 2,17 Z M 15,3 L 18,3 L 18,6 L 15,6 Z"),
-        "四角形" => Geometry.Parse("M 3,4 L 16,4 L 16,15 L 3,15 Z M 1,2 L 5,2 L 5,6 L 1,6 Z M 14,13 L 18,13 L 18,17 L 14,17 Z"),
-        "円・楕円" => Geometry.Parse("M 3,10 A 7,5 0 1 1 17,10 A 7,5 0 1 1 3,10 Z M 1,8 L 4,8 L 4,11 L 1,11 Z M 16,8 L 19,8 L 19,11 L 16,11 Z"),
+        "線" => Geometry.Parse("M 3,17 L 17,3"),
+        "四角形" => Geometry.Parse("M 3,4 H 17 V 16 H 3 Z"),
+        "円・楕円" => Geometry.Parse("M 2,10 A 8,6 0 1 1 18,10 A 8,6 0 1 1 2,10 Z"),
         "ハイライト" => Geometry.Parse("M 7,13 L 12,4 L 16,6 L 11,15 Z M 7,13 L 11,15 L 9,18 L 4,18 Z M 3,19 L 18,19"),
         "範囲指定" => Geometry.Parse("M 2,2 L 7,2 M 13,2 L 18,2 L 18,7 M 18,13 L 18,18 L 13,18 M 7,18 L 2,18 L 2,13 M 2,7 L 2,2 M 7,7 L 13,7 L 13,13 L 7,13 Z"),
         "フリーハンド" => Geometry.Parse("M 2,15 C 4,4 7,18 10,10 C 12,3 15,16 18,5 M 15,4 L 18,5 L 17,8"),
@@ -33,6 +34,7 @@ internal sealed class EditSurface : Canvas
     internal EditFrame? Frame;
     internal BitmapSource? BackgroundImage;
     internal EditMark? PendingMark;
+    internal Rect? PendingTextBox;
     internal Rect? CropRect;
     internal string? CropSizeText;
     internal double CropHandleUnit = 1;
@@ -43,6 +45,8 @@ internal sealed class EditSurface : Canvas
         dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, Width, Height));
         EditDrawing.Draw(dc, Frame.Image ?? BackgroundImage, Width, Height, Frame.Marks.Where((_, index) => index != EditingMarkIndex));
         if (PendingMark != null) EditDrawing.DrawMark(dc, PendingMark);
+        if (PendingTextBox is { } textBox)
+            dc.DrawRectangle(null, new Pen(Brushes.DodgerBlue, CropHandleUnit) { DashStyle = DashStyles.Dash }, textBox);
         if (PendingMark is { Kind: "arrow" } arrow)
         {
             // 描画中だけ起点を示す。保存する矢印には目印を含めない。
@@ -102,17 +106,24 @@ internal sealed class VisualEditorWindow : Window
     private bool IsFreehandTool => ToolName == "フリーハンド";
     private int editingIndex = -1;
     private readonly StackPanel controls = new();
+    private readonly StackPanel strokeFieldGroup;
     private readonly EditSurface surface = new() { Focusable = true, ClipToBounds = true };
-    private readonly ScrollViewer viewer = new() { Background = new SolidColorBrush(Color.FromRgb(199, 214, 226)), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-    private readonly ComboBox tool = new() { Width = 142, Margin = new Thickness(4), SelectedIndex = 0, ToolTip = "文字：用紙をドラッグして枠を作り、入力。クリックだけでも入力できます\n矢印：起点を押し、先端にしたい位置までドラッグして離す\n線・四角形・円／楕円：ドラッグして配置\nハイライト：選択後に範囲指定またはフリーハンドを選択\n配置した文字・図形はクリックして再編集" };
-    private readonly ComboBox highlightMethod = new() { Width = 166, Margin = new Thickness(4), Visibility = Visibility.Collapsed, ToolTip = "ハイライトの方法\n範囲指定：PDFの文字には自動でフィット、画像では四角い範囲\nフリーハンド：描いた軌跡に沿う" };
-    private readonly ComboBox color = new() { Width = 80, Margin = new Thickness(4), SelectedIndex = 1 };
-    private readonly ComboBox font = new() { Width = 190, Margin = new Thickness(4), ToolTip = "文字のフォント" };
-    private readonly CheckBox bold = new() { Content = "太字", Margin = new Thickness(5), VerticalAlignment = VerticalAlignment.Center };
+    private readonly ScrollViewer viewer = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    private readonly ComboBox tool = new() { Visibility = Visibility.Collapsed, SelectedIndex = 0 };
+    private readonly ComboBox highlightMethod = new() { Visibility = Visibility.Collapsed };
+    private readonly Dictionary<string, Button> toolButtons = [];
+    private readonly Dictionary<string, Button> methodButtons = [];
+    private readonly WrapPanel methodStrip = new() { Visibility = Visibility.Collapsed, VerticalAlignment = VerticalAlignment.Center };
+    private readonly ComboBox color = new() { Visibility = Visibility.Collapsed, SelectedIndex = 1 };
+    private readonly Border colorSwatch = new() { Width = 22, Height = 22, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3) };
+    private readonly Button colorPicker = new() { Width = 46, Height = 36, Margin = new Thickness(3), Padding = new Thickness(4), ToolTip = "描画色" };
+    private EditorColorPalette colorPalette = null!;
+    private readonly ComboBox font = new() { Width = 150, Margin = new Thickness(3), ToolTip = "文字のフォント" };
+    private readonly ToggleButton bold = new() { Content = "B", ToolTip = "太字", Width = 40, Height = 36, Margin = new Thickness(3), FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox fontSize = Field("24"), stroke = Field("3"), width = Field("1"), height = Field("1");
-    private readonly CheckBox aspect = new() { Content = "縦横比を保つ", IsChecked = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6) };
+    private readonly CheckBox aspect = new() { Content = "比率", IsChecked = true, ToolTip = "縦横比を保つ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6) };
     private readonly TextBlock status = new() { Margin = new Thickness(10), TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock centimeters = new() { Margin = new Thickness(10, 0, 10, 5), Foreground = Brushes.DimGray, FontSize = 12 };
+    private readonly TextBlock centimeters = new() { Margin = new Thickness(10, 0, 10, 5), FontSize = 12 };
     private readonly TextBlock pageLabel = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8) };
     private readonly TextBlock drawingHint = new() { Text = "文字はドラッグで枠を作って入力", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4) };
     private Button undo = null!, redo = null!, saveButton = null!;
@@ -120,12 +131,56 @@ internal sealed class VisualEditorWindow : Window
     private Popup? cropPopup;
     private TextBlock? cropPopupSize;
     private static TextBox Field(string value) => new() { Text = value, Width = 60, Margin = new Thickness(4), VerticalContentAlignment = VerticalAlignment.Center };
+    private static Button Iconize(Button button, string name, string geometry)
+    {
+        button.Content = new ShapePath { Data = Geometry.Parse(geometry), Width = 19, Height = 19,
+            StrokeThickness = 1.8, Fill = Brushes.Transparent, StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Stretch = Stretch.Uniform };
+        ((ShapePath)button.Content).SetResourceReference(ShapePath.StrokeProperty, "AiryIconStroke");
+        button.Width = 40; button.Height = 36; button.MinWidth = 0; button.MinHeight = 0;
+        button.Padding = new Thickness(7); button.Margin = new Thickness(3);
+        button.ToolTip = name; AutomationProperties.SetName(button, name);
+        return button;
+    }
+    private static string CommandIcon(string name) => name switch
+    {
+        "別名で保存" => "M3,2 H15 L18,5 V18 H2 V2 Z M5,2 V8 H14 V2 M5,18 V11 H15 V18",
+        "元に戻す" => "M8,4 L3,9 L8,14 M3,9 H12 C16,9 18,12 18,16",
+        "やり直す" => "M12,4 L17,9 L12,14 M17,9 H8 C4,9 2,12 2,16",
+        "全体表示" => "M2,7 V2 H7 M13,2 H18 V7 M18,13 V18 H13 M7,18 H2 V13",
+        "前のページ" => "M14,3 L7,10 L14,17",
+        "次のページ" => "M6,3 L13,10 L6,17",
+        "切り抜き" => "M3,5 H15 V17 M5,3 V15 H17 M8,8 H12 V12 H8 Z",
+        "時計回りに90°" => "M16,9 A7,7 0 1 1 9,3 M16,9 L16,3 M16,9 L10,9",
+        "サイズ変更" => "M8,2 H2 V8 M12,2 H18 V8 M2,12 V18 H8 M18,12 V18 H12 M5,5 L15,15 M12,15 H15 V12",
+        _ => Geometry.Empty.ToString()
+    };
+    private Button ToolButton(Panel panel, string name, bool method = false)
+    {
+        var button = Iconize(new Button(), name, ToolIconConverter.For(name).ToString(CultureInfo.InvariantCulture));
+        button.Click += (_, _) => { if (method) highlightMethod.SelectedItem = name; else tool.SelectedItem = name; };
+        (method ? methodButtons : toolButtons)[name] = button;
+        panel.Children.Add(button);
+        return button;
+    }
+    private void UpdateToolButtons()
+    {
+        methodStrip.Visibility = tool.SelectedItem as string == "ハイライト" ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var pair in toolButtons) Select(pair.Value, pair.Key == tool.SelectedItem as string);
+        foreach (var pair in methodButtons) Select(pair.Value, pair.Key == highlightMethod.SelectedItem as string);
+        static void Select(Button button, bool selected)
+        {
+            button.SetResourceReference(Control.BorderBrushProperty, selected ? "AiryAccent" : "AiryStroke");
+            button.BorderThickness = new Thickness(selected ? 2 : 1);
+            AutomationProperties.SetHelpText(button, selected ? "選択中" : "");
+        }
+    }
     private static DataTemplate ToolTemplate(double width)
     {
         var row = new FrameworkElementFactory(typeof(DockPanel)); row.SetValue(FrameworkElement.WidthProperty, width);
         var icon = new FrameworkElementFactory(typeof(ShapePath));
         icon.SetValue(DockPanel.DockProperty, Dock.Right); icon.SetValue(FrameworkElement.WidthProperty, 20.0); icon.SetValue(FrameworkElement.HeightProperty, 20.0);
-        icon.SetValue(FrameworkElement.MarginProperty, new Thickness(4, 0, 9, 0)); icon.SetValue(ShapePath.StrokeProperty, Brushes.SlateGray);
+        icon.SetValue(FrameworkElement.MarginProperty, new Thickness(4, 0, 9, 0)); icon.SetResourceReference(ShapePath.StrokeProperty, "AiryIconStroke");
         icon.SetValue(ShapePath.StrokeThicknessProperty, 1.7); icon.SetValue(ShapePath.StretchProperty, Stretch.None);
         icon.SetBinding(ShapePath.DataProperty, new Binding { Converter = new ToolIconConverter() }); row.AppendChild(icon);
         var label = new FrameworkElementFactory(typeof(TextBlock)); label.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
@@ -133,6 +188,15 @@ internal sealed class VisualEditorWindow : Window
         return new DataTemplate { VisualTree = row };
     }
     private static void Label(Panel panel, string value) => panel.Children.Add(new TextBlock { Text = value, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4) });
+    private static StackPanel LabeledField(string label, FrameworkElement editor, string unit)
+    {
+        // WrapPanelには一組として渡し、項目名だけを前の行に残さない。
+        var group = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        Label(group, label);
+        group.Children.Add(editor);
+        Label(group, unit);
+        return group;
+    }
     private Button Button(Panel panel, string label, Action action)
     {
         var button = new Button { Content = label, Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(3) };
@@ -151,7 +215,7 @@ internal sealed class VisualEditorWindow : Window
         Title = isPdf ? "PDFに書き込み — AiryView" : "画像編集 — AiryView";
         Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/icon.ico"));
         Width = 1100; Height = 820; MinWidth = 740; MinHeight = 520; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        FontFamily = new FontFamily("Yu Gothic UI"); FontSize = 14; Background = new SolidColorBrush(Color.FromRgb(231, 240, 245));
+        FontFamily = new FontFamily("Yu Gothic UI"); FontSize = 14;
         var root = new DockPanel(); Content = root;
         WindowTitleBar.Install(this, root);
         SetResourceReference(BackgroundProperty, "AiryEditSurface");
@@ -166,55 +230,69 @@ internal sealed class VisualEditorWindow : Window
             if (HandleEditorWheel(e.Delta, (Keyboard.Modifiers & ModifierKeys.Control) != 0, e.GetPosition(viewer))) e.Handled = true;
         };
         var commands = new WrapPanel { Margin = new Thickness(5) }; controls.Children.Add(commands);
-        saveButton = AsyncButton(commands, "別名で保存…", SaveAsync);
-        saveButton.MinWidth = 154;
-        saveButton.Padding = new Thickness(14, 5, 14, 5);
-        saveButton.HorizontalContentAlignment = HorizontalAlignment.Center;
-        undo = Button(commands, "元に戻す", () => { model?.Undo(); UpdateSurface(); });
-        redo = Button(commands, "やり直す", () => { model?.Redo(); UpdateSurface(); });
+        saveButton = Iconize(AsyncButton(commands, "別名で保存…", SaveAsync), "別名で保存", CommandIcon("別名で保存"));
+        undo = Iconize(Button(commands, "元に戻す", () => { model?.Undo(); UpdateSurface(); }), "元に戻す", CommandIcon("元に戻す"));
+        redo = Iconize(Button(commands, "やり直す", () => { model?.Redo(); UpdateSurface(); }), "やり直す", CommandIcon("やり直す"));
         Button(commands, "－", () => SetZoom(zoom / 1.25)).ToolTip = "縮小 / Ctrl＋マウスホイール下";
         Button(commands, "＋", () => SetZoom(zoom * 1.25)).ToolTip = "拡大 / Ctrl＋マウスホイール上";
-        Button(commands, "全体表示", Fit);
+        Iconize(Button(commands, "全体表示", Fit), "全体表示", CommandIcon("全体表示"));
         if (isPdf)
         {
-            AsyncButton(commands, "前のページ", () => LoadPage(page - 1)); commands.Children.Add(pageLabel);
-            AsyncButton(commands, "次のページ", () => LoadPage(page + 1));
+            Iconize(AsyncButton(commands, "前のページ", () => LoadPage(page - 1)), "前のページ", CommandIcon("前のページ"));
+            commands.Children.Add(pageLabel);
+            Iconize(AsyncButton(commands, "次のページ", () => LoadPage(page + 1)), "次のページ", CommandIcon("次のページ"));
         }
         var writing = new WrapPanel { Margin = new Thickness(5) }; controls.Children.Add(writing);
-        tool.ItemTemplate = ToolTemplate(100); highlightMethod.ItemTemplate = ToolTemplate(126);
         foreach (string name in new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) tool.Items.Add(name);
+        tool.SelectedIndex = 0;
         foreach (string name in new[] { "範囲指定", "フリーハンド" }) highlightMethod.Items.Add(name);
         highlightMethod.SelectedIndex = 0;
-        writing.Children.Add(tool); writing.Children.Add(highlightMethod); writing.Children.Add(drawingHint);
+        foreach (string name in tool.Items.Cast<string>()) ToolButton(writing, name);
+        foreach (string name in highlightMethod.Items.Cast<string>()) ToolButton(methodStrip, name, method: true);
+        writing.Children.Add(methodStrip);
         font.ItemsSource = EditorFonts.Choices; font.SelectedIndex = 0;
+        AutomationProperties.SetName(font, "文字のフォント");
         writing.Children.Add(font); writing.Children.Add(bold);
-        foreach (string name in new[] { "赤", "黒", "青", "緑", "橙", "白", "黄", "ピンク", "水色", "紫" }) color.Items.Add(name);
-        writing.Children.Add(color); Label(writing, "文字サイズ"); writing.Children.Add(FontSizeControls.Wrap(fontSize)); Label(writing, "線の太さ"); writing.Children.Add(FontSizeControls.Wrap(stroke, stroke: true));
-        Label(writing, isPdf ? "pt" : "px");
+        foreach (var choice in EditorInkColors.Choices) color.Items.Add(choice.Name);
+        color.SelectedIndex = 1;
+        colorPicker.Content = colorSwatch;
+        AutomationProperties.SetName(colorPicker, "描画色");
+        colorPalette = new EditorColorPalette(colorPicker, EditorInkColors.Choices,
+            selected => color.SelectedIndex = EditorInkColors.IndexOf(selected));
+        writing.Children.Add(colorPicker);
+        writing.Children.Add(LabeledField("A", FontSizeControls.Wrap(fontSize), isPdf ? "pt" : "px"));
+        fontSize.ToolTip = "文字サイズ"; AutomationProperties.SetName(fontSize, "文字サイズ");
+        strokeFieldGroup = LabeledField("線", FontSizeControls.Wrap(stroke, stroke: true), isPdf ? "pt" : "px");
+        stroke.ToolTip = "線の太さ"; AutomationProperties.SetName(stroke, "線の太さ");
+        writing.Children.Add(strokeFieldGroup);
+        UpdateToolButtons();
         if (!isPdf)
         {
             var dimensions = new WrapPanel { Margin = new Thickness(5) }; controls.Children.Add(dimensions);
-            cropButton = Button(dimensions, "クリップ", StartCrop);
+            cropButton = Iconize(Button(dimensions, "切り抜き", StartCrop), "切り抜き", CommandIcon("切り抜き"));
             UpdateCropButtons();
-            Button(dimensions, "左に90°", () => { model?.Rotate(-1); UpdateSurface(); Fit(); });
-            Button(dimensions, "右に90°", () => { model?.Rotate(1); UpdateSurface(); Fit(); });
+            Iconize(Button(dimensions, "時計回りに90°", () => { model?.Rotate(1); UpdateSurface(); Fit(); }), "時計回りに90°", CommandIcon("時計回りに90°"));
             Label(dimensions, "幅"); dimensions.Children.Add(width); Label(dimensions, "高さ"); dimensions.Children.Add(height);
             Label(dimensions, "px"); dimensions.Children.Add(aspect);
-            Button(dimensions, "サイズ変更", () => { if (model == null) return; model.Resize(int.Parse(width.Text), int.Parse(height.Text)); UpdateSurface(); Fit(); });
+            AutomationProperties.SetName(aspect, "縦横比を保つ");
+            Iconize(Button(dimensions, "サイズ変更", () => { if (model == null) return; model.Resize(int.Parse(width.Text), int.Parse(height.Text)); UpdateSurface(); Fit(); }), "サイズ変更", CommandIcon("サイズ変更"));
             controls.Children.Add(centimeters);
             width.TextChanged += (_, _) => { KeepAspect(true); UpdateCentimeters(); };
             height.TextChanged += (_, _) => { KeepAspect(false); UpdateCentimeters(); };
         }
         else { fontSize.Text = "14"; stroke.Text = "2"; }
-        status.Text = "文字はドラッグで枠を作って入力（クリックだけでも可）。矢印・線・図形・ハイライトはドラッグ。画像のクリップは範囲を調整し、近くの操作ウィンドウで確定します。別名で保存します。";
+        status.Text = "用紙をドラッグして追加";
         surface.MouseLeftButtonDown += PointerDown; surface.MouseMove += PointerMove; surface.MouseLeftButtonUp += PointerUp;
         surface.LostMouseCapture += (_, _) => CancelDrag();
         Deactivated += (_, _) => { if (cropPopup != null) cropPopup.IsOpen = false; };
         Activated += (_, _) => UpdateCropPopup();
         tool.SelectionChanged += (_, _) => { CommitEdits(); CancelCrop(); highlightMethod.Visibility = tool.SelectedItem as string == "ハイライト" ? Visibility.Visible : Visibility.Collapsed; if (IsRangeHighlightTool || IsFreehandTool) color.SelectedIndex = 6; else if (ToolName == "文字") color.SelectedIndex = 1; if (IsFreehandTool) stroke.Text = "14"; };
-        tool.SelectionChanged += (_, _) => UpdateDrawingHint();
+        tool.SelectionChanged += (_, _) => { UpdateDrawingHint(); UpdateToolButtons(); };
         highlightMethod.SelectionChanged += (_, _) => { CommitEdits(); CancelDrag(); if (IsFreehandTool) stroke.Text = "14"; };
-        fontSize.TextChanged += (_, _) => UpdateEditAppearance(); stroke.TextChanged += (_, _) => UpdateEditAppearance(); color.SelectionChanged += (_, _) => UpdateEditAppearance();
+        highlightMethod.SelectionChanged += (_, _) => UpdateToolButtons();
+        fontSize.TextChanged += (_, _) => UpdateEditAppearance(); stroke.TextChanged += (_, _) => UpdateEditAppearance();
+        color.SelectionChanged += (_, _) => { colorSwatch.Background = new SolidColorBrush(EditorInkColors.At(color.SelectedIndex)); UpdateEditAppearance(); };
+        colorSwatch.Background = new SolidColorBrush(EditorInkColors.At(color.SelectedIndex));
         font.SelectionChanged += (_, _) => UpdateEditAppearance(); bold.Checked += (_, _) => UpdateEditAppearance(); bold.Unchecked += (_, _) => UpdateEditAppearance();
         PreviewKeyDown += async (_, e) =>
         {
@@ -280,8 +358,7 @@ internal sealed class VisualEditorWindow : Window
         if (editingIndex < 0 && model.Frame.Marks.Length >= 500) throw new IOException("1ページの書き込みは500個までです。");
         fontSize.Text = mark.Size.ToString(CultureInfo.CurrentCulture);
         font.SelectedItem = EditorFonts.Choices.FirstOrDefault(item => item.Id == mark.FontId) ?? EditorFonts.Choices[0]; bold.IsChecked = mark.Bold;
-        Color[] colors = [Colors.Red, Colors.Black, Colors.RoyalBlue, Colors.ForestGreen, Colors.Orange, Colors.White, Colors.Yellow, Colors.HotPink, Colors.DeepSkyBlue, Colors.MediumPurple];
-        color.SelectedIndex = Math.Max(0, Array.IndexOf(colors, mark.Color));
+        color.SelectedIndex = EditorInkColors.IndexOf(mark.Color);
         textEditor = new InlineTextEditor(mark.Start, mark.Text, mark.Size, mark.Color, zoom,
             new Size(model.Frame.Width, model.Frame.Height), CommitEdits, CancelEdits,
             editingIndex >= 0 ? () => { model.Replace(editingIndex, null); CancelEdits(); UpdateSurface(); } : null,
@@ -292,7 +369,7 @@ internal sealed class VisualEditorWindow : Window
         textEditor.SaveRequested += async () => { try { await SaveAsync(); } catch (Exception ex) { ShowError(ex); } };
         textEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = editingIndex; surface.Children.Add(textEditor); surface.InvalidateVisual();
-        status.Text = "Enterで改行。文字を選んで左下のAアイコンから書体・サイズ・色を変更できます。枠の線上をドラッグして移動、周囲の丸で大きさを調整。選択中の枠はDeleteで削除。Ctrl+Enterで確定、Escで取消。";
+        status.Text = "文字を入力 · Ctrl+Enterで確定 · Escで取消";
     }
     private int HitText(Point point)
     {
@@ -321,15 +398,14 @@ internal sealed class VisualEditorWindow : Window
                 fontSize.Text = mark.Size.ToString(CultureInfo.CurrentCulture); bold.IsChecked = mark.Bold;
             }
             else stroke.Text = mark.Size.ToString(CultureInfo.CurrentCulture);
-            Color[] inks = [Colors.Red, Colors.Black, Colors.RoyalBlue, Colors.ForestGreen, Colors.Orange, Colors.White, Colors.Yellow, Colors.HotPink, Colors.DeepSkyBlue, Colors.MediumPurple];
-            color.SelectedIndex = Math.Max(0, Array.IndexOf(inks, mark.Color));
+            color.SelectedIndex = EditorInkColors.IndexOf(mark.Color);
         }
         finally { syncingFormat = false; }
     }
     private void UpdateEditAppearance()
     {
         if (syncingFormat) return;
-        var ink = new[] { Colors.Red, Colors.Black, Colors.RoyalBlue, Colors.ForestGreen, Colors.Orange, Colors.White, Colors.Yellow, Colors.HotPink, Colors.DeepSkyBlue, Colors.MediumPurple }[Math.Max(0, color.SelectedIndex)];
+        var ink = EditorInkColors.At(color.SelectedIndex);
         if (textEditor != null && double.TryParse(fontSize.Text, out double size) && double.IsFinite(size) && size > 0 && size <= 1000) textEditor.SetAppearance(size, ink);
         if (textEditor != null) textEditor.SetFont((font.SelectedItem as EditorFont)?.Id ?? "MS Gothic", bold.IsChecked == true);
         if (shapeEditor != null && double.TryParse(stroke.Text, out double weight) && double.IsFinite(weight) && weight > 0 && weight <= 1000) shapeEditor.SetAppearance(weight, ink);
@@ -340,18 +416,14 @@ internal sealed class VisualEditorWindow : Window
         CommitEdits();
         if (index < 0 && model.Frame.Marks.Length >= 500) throw new IOException("1ページの書き込みは500個までです。");
         editingIndex = index; stroke.Text = mark.Size.ToString(CultureInfo.CurrentCulture);
-        Color[] colors = [Colors.Red, Colors.Black, Colors.RoyalBlue, Colors.ForestGreen, Colors.Orange, Colors.White, Colors.Yellow, Colors.HotPink, Colors.DeepSkyBlue, Colors.MediumPurple];
-        color.SelectedIndex = Math.Max(0, Array.IndexOf(colors, mark.Color));
+        color.SelectedIndex = EditorInkColors.IndexOf(mark.Color);
         shapeEditor = new InlineShapeEditor(mark, zoom, new Size(model.Frame.Width, model.Frame.Height), CommitEdits, CancelEdits,
             () => { if (editingIndex >= 0) model.Replace(editingIndex, null); CancelEdits(); UpdateSurface(); }, pdf == null ? "px" : "pt");
         shapeEditor.AppearanceChanged += SyncInlineFormatting;
         shapeEditor.SaveRequested += async () => { try { await SaveAsync(); } catch (Exception ex) { ShowError(ex); } };
         shapeEditor.ZoomRequested += delta => HandleEditorWheel(delta, true, Mouse.GetPosition(viewer));
         surface.EditingMarkIndex = index; surface.Children.Add(shapeEditor); surface.InvalidateVisual();
-        status.Text = mark.Kind.StartsWith("highlight", StringComparison.Ordinal)
-            ? "角の丸で範囲、中央の移動マークで位置を調整。近くのパレットで色を変更できます。ハイライトを選んだ状態でクリックすると再編集できます。"
-            : mark.Kind == "arrow" ? "両端の丸は起点と先端。長さ・向きを調整し、中央の移動マークで移動できます。先端は操作中も見えます。"
-            : "両端の丸で長さ・向きを調整。中央の移動マークで移動。近くのパレットで色・太さを変更できます。確定後も線・図形をクリックして修正できます。";
+        status.Text = "丸をドラッグして調整 · 中央で移動";
     }
     private int HitShape(Point point)
     {
@@ -395,6 +467,7 @@ internal sealed class VisualEditorWindow : Window
         if (textEditor != null) { textEditor.ClosePalette(); surface.Children.Remove(textEditor); }
         if (shapeEditor != null) { shapeEditor.ClosePalette(); surface.Children.Remove(shapeEditor); }
         textEditor = null; shapeEditor = null; editingIndex = -1; surface.EditingMarkIndex = -1; surface.InvalidateVisual();
+        status.Text = "用紙をドラッグして追加";
     }
     private void SetBusy(bool value) { busy = value; controls.IsEnabled = !value; surface.IsEnabled = !value; }
     private void UpdateSurface()
@@ -452,28 +525,39 @@ internal sealed class VisualEditorWindow : Window
     internal double EditorZoomForTest => zoom;
     internal string CentimeterTextForTest => centimeters.Text;
     internal double SaveButtonWidthForTest => saveButton.ActualWidth;
+    internal int ColorChoiceCountForTest => colorPalette.ChoiceCount;
+    internal FrameworkElement ColorPaletteVisualForTest => colorPalette.Visual;
+    internal void OpenColorPaletteForTest() => colorPalette.OpenForTest();
+    internal Color SelectedColorForTest => EditorInkColors.At(color.SelectedIndex);
+    internal void SelectColorForTest(int index) => colorPalette.SelectForTest(index);
     internal string[] ToolNamesForTest => tool.Items.Cast<string>().ToArray();
     internal string[] HighlightMethodNamesForTest => highlightMethod.Items.Cast<string>().ToArray();
-    internal bool ToolIconsReadyForTest => tool.ItemTemplate != null && highlightMethod.ItemTemplate != null &&
-        tool.Items.Cast<string>().Concat(highlightMethod.Items.Cast<string>()).All(name => !ToolIconConverter.For(name).Bounds.IsEmpty);
-    internal bool HighlightMethodVisibleForTest => highlightMethod.Visibility == Visibility.Visible;
+    internal bool ToolIconsReadyForTest => toolButtons.Count == 6 && methodButtons.Count == 2 &&
+        toolButtons.Values.Concat(methodButtons.Values).All(button => button.Content is ShapePath);
+    internal bool HighlightMethodVisibleForTest => methodStrip.Visibility == Visibility.Visible;
     internal void SelectToolForTest(string name) => tool.SelectedItem = name;
     internal string DrawingHintForTest => drawingHint.Text;
     private void UpdateDrawingHint()
     {
         drawingHint.Text = ToolName == "矢印" ? "○ 起点を押す → 先端の位置で離す"
             : ToolName == "文字" ? "文字はドラッグで枠を作って入力" : "用紙をドラッグして描く";
-        status.Text = ToolName == "矢印" ? "起点を押し、指したい位置までドラッグして離すと、その位置が先端になります。"
-            : "文字はドラッグで枠を作って入力（クリックだけでも可）。線・図形・ハイライトはドラッグして描きます。配置後もクリックして修正できます。";
+        status.Text = "用紙をドラッグして追加";
     }
     internal EditMark DrawingMarkForTest(Point start, Point end) => Mark(start, end);
-    internal double ToolWidthForTest => tool.Width;
-    internal double HighlightMethodWidthForTest => highlightMethod.Width;
+    internal double ToolWidthForTest => toolButtons["文字"].Width;
+    internal bool StrokeFieldGroupedForTest => strokeFieldGroup.Children.Count == 3
+        && strokeFieldGroup.Children[0] is TextBlock { Text: "線" }
+        && strokeFieldGroup.Children[1] is StackPanel
+        && strokeFieldGroup.Children[2] is TextBlock { Text: "px" or "pt" }
+        && strokeFieldGroup.Children.Cast<FrameworkElement>()
+            .All(child => Math.Abs(child.TranslatePoint(new Point(0, child.ActualHeight / 2), strokeFieldGroup).Y
+                - strokeFieldGroup.ActualHeight / 2) < 2);
+    internal double HighlightMethodWidthForTest => methodButtons["範囲指定"].Width;
     internal bool CropModeForTest => cropMode;
     internal Rect? CropSelectionForTest => cropSelection;
     internal string CropSizeTextForTest => surface.CropSizeText ?? "";
     internal bool CropPopupOpenForTest => cropPopup?.IsOpen == true;
-    internal string CropButtonTextForTest => cropButton.Content?.ToString() ?? "";
+    internal string CropButtonTextForTest => cropButton.ToolTip?.ToString() ?? "";
     internal void StartCropForTest() => StartCrop();
     internal void SetCropSelectionForTest(Rect value) => SetCropSelection(value);
     internal void ApplyCropForTest() => ApplyCrop();
@@ -487,15 +571,15 @@ internal sealed class VisualEditorWindow : Window
     private Popup CreateCropPopup()
     {
         var root = new StackPanel();
-        root.Children.Add(new TextBlock { Text = "内側をドラッグ：移動　角をドラッグ：大きさ変更", FontSize = 12, Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 7) });
-        cropPopupSize = new TextBlock { FontSize = 12, Foreground = Brushes.DimGray, Margin = new Thickness(0, 0, 0, 7), Text = surface.CropSizeText ?? "" };
+        root.Children.Add(new TextBlock { Text = "内側をドラッグ：移動　角をドラッグ：大きさ変更", FontSize = 12, Margin = new Thickness(0, 0, 0, 7) });
+        cropPopupSize = new TextBlock { FontSize = 12, Margin = new Thickness(0, 0, 0, 7), Text = surface.CropSizeText ?? "" };
         root.Children.Add(cropPopupSize);
         var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(new TextBlock { Text = "クリップ", Width = 62, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.SlateGray });
+        row.Children.Add(new TextBlock { Text = "切り抜き", Width = 62, VerticalAlignment = VerticalAlignment.Center });
         foreach (var (label, action) in new (string, Action)[] { ("確定", ApplyCrop), ("取消", CancelCrop) })
         {
-            var button = new Button { Content = label, FontSize = 12, Padding = new Thickness(9, 4, 9, 4), Margin = new Thickness(3, 0, 0, 0), Background = Brushes.White, BorderBrush = Brushes.LightGray };
-            if (label == "確定") { button.Background = new SolidColorBrush(Color.FromRgb(37, 99, 235)); button.Foreground = Brushes.White; button.BorderBrush = button.Background; }
+            var button = new Button { Content = label, FontSize = 12, Padding = new Thickness(9, 4, 9, 4), Margin = new Thickness(3, 0, 0, 0) };
+            if (label == "確定") ThemeManager.PrimaryButton(button);
             button.Click += (_, e) => { e.Handled = true; try { action(); } catch (Exception ex) { ShowError(ex); } };
             row.Children.Add(button);
         }
@@ -503,6 +587,7 @@ internal sealed class VisualEditorWindow : Window
         var card = new Border { Child = root, Padding = new Thickness(12), Background = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
             Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 3, Opacity = .18, Color = Colors.Black } };
+        ThemeManager.StyleCard(card);
         card.PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { CancelCrop(); e.Handled = true; } else if (e.Key == Key.Enter) { ApplyCrop(); e.Handled = true; } };
         return new Popup { Child = card, PlacementTarget = surface, Placement = PlacementMode.Relative, AllowsTransparency = true, StaysOpen = true };
     }
@@ -523,7 +608,7 @@ internal sealed class VisualEditorWindow : Window
     {
         if (model == null) return;
         CancelEdits(); cropMode = true; SetCropSelection(null);
-        status.Text = "クリップする範囲をドラッグ。選択後は内側をドラッグして移動、角で大きさを調整。近くの操作ウィンドウで確定または取消できます。";
+        status.Text = "切り抜く範囲をドラッグ。選択後は内側をドラッグして移動、角で大きさを調整。近くの操作ウィンドウで確定または取消できます。";
         UpdateCropButtons();
     }
     private void SetCropSelection(Rect? value)
@@ -544,7 +629,7 @@ internal sealed class VisualEditorWindow : Window
     {
         if (model == null || cropSelection is not { } rect) return;
         model.Crop(rect); CancelCrop(); UpdateSurface(); Fit();
-        status.Text = "クリップしました。元に戻すこともできます。別名で保存してください。";
+        status.Text = "切り抜きました。元に戻すこともできます。別名で保存してください。";
     }
     private void CancelCrop()
     {
@@ -596,7 +681,7 @@ internal sealed class VisualEditorWindow : Window
     private EditMark Mark(Point start, Point end)
     {
         string kind = ToolName switch { "文字" => "text", "矢印" => "arrow", "四角形" => "rectangle", "円・楕円" => "ellipse", "範囲指定" => "highlight", _ => "line" };
-        Color ink = new[] { Colors.Red, Colors.Black, Colors.RoyalBlue, Colors.ForestGreen, Colors.Orange, Colors.White, Colors.Yellow, Colors.HotPink, Colors.DeepSkyBlue, Colors.MediumPurple }[Math.Max(0, color.SelectedIndex)];
+        Color ink = EditorInkColors.At(color.SelectedIndex);
         if (IsRangeHighlightTool && pdf != null && model != null)
         {
             var boxes = TextHighlightSelection.Select(highlightCharacters[page], new Size(model.Frame.Width, model.Frame.Height), start, end);
@@ -634,7 +719,7 @@ internal sealed class VisualEditorWindow : Window
             int hit = textHit < 0 ? HitShape(p) : -1;
             if (textHit >= 0) BeginText(p);
             else if (hit >= 0) BeginShape(model.Frame.Marks[hit], hit);
-            else if (ToolName == "文字") { BeginText(p); drag = p; textBoxDrag = true; surface.CaptureMouse(); }
+            else if (ToolName == "文字") { drag = p; textBoxDrag = true; surface.CaptureMouse(); }
             else
             {
                 if (IsRangeHighlightTool && pdf != null && !highlightCharacters.ContainsKey(page)) highlightCharacters[page] = pdf.TextCharacters(page);
@@ -660,7 +745,7 @@ internal sealed class VisualEditorWindow : Window
             Point point = Position(e);
             if (textBoxDrag)
             {
-                if ((point - start).Length * zoom >= 3) textEditor?.SetBoxFromDrag(start, point);
+                surface.PendingTextBox = TextDragEnough(start, point) ? new Rect(start, point) : null;
                 surface.InvalidateVisual(); return;
             }
             if (IsFreehandTool) AddFreehandPoint(point);
@@ -677,8 +762,7 @@ internal sealed class VisualEditorWindow : Window
         {
             if (textBoxDrag)
             {
-                if ((end - start).Length * zoom >= 3) textEditor?.SetBoxFromDrag(start, end);
-                CancelDrag(); textEditor?.Input.Focus(); e.Handled = true; return;
+                CancelDrag(); CompleteTextDrag(start, end); e.Handled = true; return;
             }
             if (IsFreehandTool) AddFreehandPoint(end);
             bool enough = IsFreehandTool ? freehandPoints.Count > 1 : (end - start).Length * zoom >= 3;
@@ -695,7 +779,16 @@ internal sealed class VisualEditorWindow : Window
         if (freehandPoints.Count >= 2048) { var reduced = freehandPoints.Where((_, i) => i % 2 == 0).ToArray(); freehandPoints.Clear(); freehandPoints.AddRange(reduced); }
         freehandPoints.Add(point);
     }
-    private void CancelDrag() { drag = null; textBoxDrag = false; freehandPoints.Clear(); surface.PendingMark = null; if (surface.IsMouseCaptured) surface.ReleaseMouseCapture(); surface.InvalidateVisual(); }
+    private bool TextDragEnough(Point start, Point end) => Math.Abs(end.X - start.X) * zoom >= 3 && Math.Abs(end.Y - start.Y) * zoom >= 3;
+    internal bool CompleteTextDrag(Point start, Point end)
+    {
+        if (!TextDragEnough(start, end)) return false;
+        BeginText(start);
+        textEditor?.SetBoxFromDrag(start, end);
+        textEditor?.Input.Focus();
+        return textEditor != null;
+    }
+    private void CancelDrag() { drag = null; textBoxDrag = false; freehandPoints.Clear(); surface.PendingMark = null; surface.PendingTextBox = null; if (surface.IsMouseCaptured) surface.ReleaseMouseCapture(); surface.InvalidateVisual(); }
     private async Task LoadPage(int target)
     {
         if (busy || pdf == null || target < 0 || target >= pdf.Count) return;

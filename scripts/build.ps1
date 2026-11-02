@@ -13,6 +13,8 @@ if ($Test) {
     if ($taskRun.ExitCode -ne 0) { throw 'PDF and printing tests failed; see artifacts/test-failure.txt' }
     $taskRun = Start-Process -FilePath $taskDotnet -ArgumentList @($taskDll, '--ui-test') -Wait -PassThru -NoNewWindow
     if ($taskRun.ExitCode -ne 0) { throw 'UI tests failed; see artifacts/test-failure.txt' }
+    $taskRun = Start-Process -FilePath $taskDotnet -ArgumentList @($taskDll, '--theme-test') -Wait -PassThru -NoNewWindow
+    if ($taskRun.ExitCode -ne 0) { throw 'Theme tests failed; see artifacts/test-failure.txt' }
     $taskRun = Start-Process -FilePath $taskDotnet -ArgumentList @($taskDll, '--startup-test') -Wait -PassThru -NoNewWindow
     if ($taskRun.ExitCode -ne 0) { throw 'Startup tests failed; see artifacts/test-failure.txt' }
     $taskRun = Start-Process -FilePath $taskDotnet -ArgumentList @($taskDll, '--mixed-paper-test') -Wait -PassThru -NoNewWindow

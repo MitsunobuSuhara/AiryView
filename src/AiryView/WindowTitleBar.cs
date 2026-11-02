@@ -1,5 +1,7 @@
 using System.Windows.Automation;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Shell;
 using ShapePath = System.Windows.Shapes.Path;
 
@@ -13,11 +15,27 @@ internal sealed class WindowTitleBar : DockPanel
     internal Button MinimizeButton { get; }
     internal Button MaximizeButton { get; }
     internal Button CloseButton { get; }
+    internal Button? FileMenuButton { get; private set; }
+    internal Button? FileOpenItem { get; private set; }
+    internal Button? FilePrintItem { get; private set; }
+    internal Popup? FileMenuPopup { get; private set; }
     private readonly ShapePath themeIcon;
     private readonly ShapePath maximizeIcon;
+    private readonly StackPanel titleItems;
+
+    internal static void Install(Window window)
+    {
+        var content = (UIElement)window.Content;
+        window.Content = null;
+        var root = new DockPanel();
+        window.Content = root;
+        root.Children.Add(content);
+        Install(window, root);
+    }
 
     internal static WindowTitleBar Install(Window window, DockPanel root)
     {
+        ThemeManager.TrackWindow(window);
         // WindowChromeで見た目だけを置換し、枠だけのドラッグ表示などOSの機能を残す。
         window.WindowStyle = WindowStyle.SingleBorderWindow;
         window.UseLayoutRounding = true; window.SnapsToDevicePixels = true;
@@ -59,11 +77,54 @@ internal sealed class WindowTitleBar : DockPanel
         }
         window.StateChanged += (_, _) => UpdateMaximizeIcon(); UpdateMaximizeIcon();
 
-        var title = new DockPanel { Margin = new Thickness(9, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
-        title.Children.Add(new Image { Source = window.Icon, Width = 16, Height = 16, Margin = new Thickness(0, 0, 7, 0) });
+        titleItems = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(9, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        titleItems.Children.Add(new Image { Source = window.Icon, Width = 16, Height = 16, Margin = new Thickness(0, 0, 7, 0) });
         var label = new TextBlock { FontSize = 12, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis };
         label.SetBinding(TextBlock.TextProperty, new Binding(nameof(Window.Title)) { Source = window });
-        title.Children.Add(label); Children.Add(title);
+        titleItems.Children.Add(label); Children.Add(titleItems);
+    }
+
+    internal void AddFileMenu(Action open, Action print)
+    {
+        var items = new StackPanel();
+        var card = new Border { Child = items, MinWidth = 160, Padding = new Thickness(4), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5) };
+        card.SetResourceReference(Border.BackgroundProperty, "AiryPopupBackground");
+        card.SetResourceReference(Border.BorderBrushProperty, "AiryStroke");
+        FileMenuPopup = new Popup { Child = card, Placement = PlacementMode.Bottom, AllowsTransparency = true, StaysOpen = false };
+        FileOpenItem = AddFileAction(items, "開く", "Ctrl+O", () => { FileMenuPopup.IsOpen = false; open(); });
+        FilePrintItem = AddFileAction(items, "印刷", "Ctrl+P", () => { FileMenuPopup.IsOpen = false; print(); });
+        FilePrintItem.IsEnabled = false;
+        var caption = new TextBlock { Text = "ファイル", FontSize = 12, Foreground = Brushes.White };
+        FileMenuButton = AddCustomButton(titleItems, caption, "ファイル", () => FileMenuPopup.IsOpen = !FileMenuPopup.IsOpen, width: 62);
+        FileMenuButton.Margin = new Thickness(12, 0, 0, 0);
+        FileMenuPopup.PlacementTarget = FileMenuButton;
+        FileMenuPopup.PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { FileMenuPopup.IsOpen = false; e.Handled = true; } };
+    }
+
+    private static Button AddFileAction(Panel parent, string name, string shortcut, Action action)
+    {
+        var row = new DockPanel();
+        var gesture = new TextBlock { Text = shortcut, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24, 0, 0, 0) };
+        gesture.SetResourceReference(TextBlock.ForegroundProperty, "AiryInkSecondary");
+        DockPanel.SetDock(gesture, Dock.Right); row.Children.Add(gesture);
+        var label = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center };
+        label.SetResourceReference(TextBlock.ForegroundProperty, "AiryInk"); row.Children.Add(label);
+        var button = new Button { Content = row, Padding = new Thickness(10, 6, 10, 6), BorderThickness = new Thickness(0), Background = Brushes.Transparent,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch, MinHeight = 28 };
+        var surface = new FrameworkElementFactory(typeof(Border)); surface.Name = "Surface";
+        surface.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+        surface.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+        surface.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
+        var content = new FrameworkElementFactory(typeof(ContentPresenter)); surface.AppendChild(content);
+        var template = new ControlTemplate(typeof(Button)) { VisualTree = surface };
+        var highlighted = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        highlighted.Setters.Add(new Setter(Border.BackgroundProperty, new DynamicResourceExtension("AiryButtonBackgroundHover"), "Surface"));
+        template.Triggers.Add(highlighted);
+        var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
+        disabled.Setters.Add(new Setter(UIElement.OpacityProperty, .45)); template.Triggers.Add(disabled);
+        button.Template = template;
+        AutomationProperties.SetName(button, name); button.Click += (_, _) => action(); parent.Children.Add(button);
+        return button;
     }
 
     private void UpdateThemeIcon(AppTheme theme)
@@ -86,9 +147,9 @@ internal sealed class WindowTitleBar : DockPanel
         }
     }
 
-    private static Button AddCustomButton(Panel parent, FrameworkElement icon, string label, Action action)
+    private static Button AddCustomButton(Panel parent, FrameworkElement icon, string label, Action action, double width = 38)
     {
-        var button = new Button { Content = icon, ToolTip = label, Width = 38, Height = BarHeight, MinHeight = 0,
+        var button = new Button { Content = icon, ToolTip = label, Width = width, Height = BarHeight, MinHeight = 0,
             Margin = new Thickness(0), Padding = new Thickness(0), BorderThickness = new Thickness(0),
             Background = Brushes.Transparent, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
         var border = new FrameworkElementFactory(typeof(Border)); border.Name = "Surface";

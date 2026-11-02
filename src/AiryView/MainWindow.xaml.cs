@@ -13,10 +13,8 @@ namespace AiryView;
 
 public partial class MainWindow : Window
 {
-    private int previewRequest;
-    private readonly Dictionary<TabState, Dictionary<int, BitmapSource>> previewCache = [];
-    private readonly Dictionary<int, Button> previewButtons = [];
     private readonly ToolTipGuard toolTips;
+    private readonly WindowTitleBar titleBar;
     private sealed class TabState(PdfDocument document)
     {
         public PdfDocument Document = document;
@@ -73,6 +71,9 @@ public partial class MainWindow : Window
         public int PendingWidth, PendingHeight;
     }
     private readonly List<PageView> pageViews = [];
+    private int previewRequest;
+    private readonly Dictionary<TabState, Dictionary<int, BitmapSource>> previewCache = [];
+    private readonly Dictionary<int, Button> previewButtons = [];
     private Grid PageSurface => pageViews[Current!.Page].Surface;
     private object? displayedState;
     private bool displayedEditor;
@@ -158,7 +159,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         InitializeTokenCounter();
         toolTips = new ToolTipGuard(this);
-        WindowTitleBar.Install(this, (DockPanel)Content);
+        titleBar = WindowTitleBar.Install(this, (DockPanel)Content);
+        titleBar.AddFileMenu(() => OpenClick(this, new RoutedEventArgs()), () => PrintClick(this, new RoutedEventArgs()));
         suppressWelcomeUntilOpen = !showWelcome;
         Action<AppTheme> themeHandler = theme =>
         {
@@ -522,8 +524,7 @@ public partial class MainWindow : Window
         displayedState = (object?)image ?? textDocument;
         VisualEditButton.Visibility = state != null || image != null ? Visibility.Visible : Visibility.Collapsed;
         VisualEditButton.IsEnabled = image != null || state?.Document.CanEdit == true;
-        VisualEditButton.ToolTip = (image != null ? "画像を編集：回転・切り抜き・サイズ変更" : "PDFに書き込み")
-            + "\n文字：用紙をクリックして入力\n矢印・線・ハイライト：ドラッグして離す\n配置した文字・図形はクリックして再編集";
+        VisualEditButton.ToolTip = image != null ? "画像を編集" : "PDFに書き込み";
         displayedEditor = textDocument?.ShowEditor == true;
         changingLayout = true;
         ClearPdfSelection();
@@ -531,6 +532,7 @@ public partial class MainWindow : Window
         ClearTextSearch();
         TextSearchBar.Visibility = Visibility.Collapsed;
         UpdateWelcome();
+        if (state == null && image == null && textDocument == null) Status.Text = "";
         Viewer.Visibility = state != null ? Visibility.Visible : Visibility.Collapsed;
         MarkdownViewer.Visibility = textDocument?.IsMarkdown == true && !textDocument.SourceMode ? Visibility.Visible : Visibility.Collapsed;
         TextEditorArea.Visibility = textDocument?.ShowEditor == true ? Visibility.Visible : Visibility.Collapsed;
@@ -547,8 +549,10 @@ public partial class MainWindow : Window
         else if (PagePreviewSidebar.Visibility == Visibility.Visible) _ = ShowPagePreviewAsync(state);
         RotationControls.Visibility = state != null || image != null ? Visibility.Visible : Visibility.Collapsed;
         FitWidthButton.Visibility = state != null || image != null ? Visibility.Visible : Visibility.Collapsed;
-        PrintButton.Visibility = state != null || textDocument?.Editable == true ? Visibility.Visible : Visibility.Collapsed;
-        ContentGrid.Background = textDocument != null || image != null ? Brushes.White : new SolidColorBrush(Color.FromRgb(232, 237, 244));
+        titleBar.FilePrintItem!.IsEnabled = state != null || textDocument?.Editable == true;
+        ContentGrid.SetResourceReference(Panel.BackgroundProperty, "AiryCanvas");
+        if (textDocument?.IsMarkdown == true && !textDocument.SourceMode)
+            textDocument.Document.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "AiryEditorForeground");
         MarkdownViewer.Document = textDocument?.IsMarkdown == true && !textDocument.SourceMode ? textDocument.Document : null;
         if (textDocument?.ShowEditor == true && TextEditor.Text != textDocument.LiveText) { opening = true; TextEditor.Text = textDocument.LiveText; opening = false; }
         TextEditor.TextWrapping = textDocument?.Wrap == true ? TextWrapping.Wrap : TextWrapping.NoWrap;
@@ -1129,26 +1133,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { Error(ex); }
     }
-    private void RotateLeftClick(object s, RoutedEventArgs e) => Rotate(-1);
     private void RotateRightClick(object s, RoutedEventArgs e) => Rotate(1);
-    private async void ResetRotationClick(object s, RoutedEventArgs e)
-    {
-        if (CurrentImage is { } image)
-        {
-            image.Rotation = 0;
-            ApplyImageLayout(image);
-            UpdateNonPdfStatus();
-            return;
-        }
-        if (Current is not { } state) return;
-        try
-        {
-            state.Document.ResetRotation(state.Page);
-            UpdateTabTitle(state);
-            await RenderCurrent();
-        }
-        catch (Exception ex) { Error(ex); }
-    }
     private void UpdateTabTitle(TabState state)
     {
         foreach (TabItem tab in Tabs.Items) if (tab.Tag == state) SetTabTitle(tab, System.IO.Path.GetFileName(state.Document.Path) + (state.Document.Dirty ? " *" : ""));
@@ -1303,7 +1288,7 @@ public partial class MainWindow : Window
             if (closedPaths.Count > 20) closedPaths.RemoveAt(0);
         }
         ++renderVersion; Tabs.Items.Remove(tab);
-        if (tab.Tag is TabState pdf) pdf.Document.Dispose();
+        if (tab.Tag is TabState pdf) { previewCache.Remove(pdf); pdf.Document.Dispose(); }
     }
     private async void RestoreClosedTab(object s, RoutedEventArgs e) => await RestoreClosedTabAsync();
     internal async Task<bool> RestoreClosedTabAsync()
@@ -1355,7 +1340,7 @@ public partial class MainWindow : Window
     private void HelpClick(object s, RoutedEventArgs e)
     {
         MessageBox.Show(this,
-            "AiryView 2.1.32\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、上下のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\n画像編集：回転・切り抜き・サイズ変更・文字／矢印／線\nPDF書き込み：文字／矢印／線。追加文字は図形として別名保存\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
+            "AiryView 2.1.46\n\n対応形式：PDF、Markdown、TXT、JPEG、PNG、TIFF、BMP、GIF、ICO、WebP、SVG\nファイルを開く：Ctrl＋O、またはドラッグ＆ドロップ\nページ移動：ホイールで連続スクロール、ページ番号入力、上下のボタン\nPDF・画像の拡大縮小：Ctrl＋ホイール、＋／−、倍率入力、画面幅に合わせる\n画像：回転アイコン、ダブルクリックで100％／画面幅表示\n画像編集：回転・切り抜き・サイズ変更・文字／矢印／線\nPDF書き込み：文字／矢印／線。追加文字は図形として別名保存\nMarkdown：Ctrl＋Shift＋MでPreview／Source編集、SourceはAlt＋Zで折り返し、Ctrl＋Sで保存\nTXT：Alt＋Zで折り返し、Ctrl＋Sで安全に保存、Ctrl＋Fで検索、Ctrl＋Pで印刷\n共通：Ctrl＋Shift＋Tで閉じたタブを復元、Ctrl＋0で100％、Ctrl＋＋／－で倍率変更\nPDF文字の選択：文字をドラッグ、Ctrl＋Cでコピー\n印刷：Ctrl＋P\nPDFの入力・注釈・検索・署名確認：Ctrl＋F\nパスワードはファイルを開く際に入力します。保存・ログには残しません。\n\n新しいPDFの印刷倍率は100%。指定倍率では自動縮小せず、欠けをプレビューで知らせます。\nドライバー側の拡大縮小・Nアップは無効にしてください。\n回転を保存するときは別名保存します。\n\n寸法確認用PDFには縦横100mmの基準線があります。\n会社での印刷は利用者評価で用途上合格（約0.1mmのずれに見えるとの報告）。",
             "AiryView — 使い方", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void ToolsClick(object sender, RoutedEventArgs e)

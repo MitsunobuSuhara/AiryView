@@ -15,6 +15,7 @@ internal sealed class InlineTextEditor : Border
     private const double InputTextLeftInset = 5;
     private readonly Size bounds;
     private double zoom;
+    private double preferredWidth;
     private readonly Popup palette;
     private readonly Popup formatPopup;
     private readonly Canvas handleLayer;
@@ -48,6 +49,7 @@ internal sealed class InlineTextEditor : Border
     internal Color Ink { get; private set; }
     internal string FontId { get; private set; } = "MS Gothic";
     internal bool PaletteOpenForTest => palette.IsOpen;
+    internal FrameworkElement PaletteForTest => (FrameworkElement)palette.Child;
     internal bool CanDeleteForTest => remove != null;
     internal bool MoveEdgesUseSizeAllForTest => moveEdges.Length == 4 && moveEdges.All(edge => edge.Cursor == Cursors.SizeAll);
     internal Size FormatHandleSizeForTest => new(formatHandle.Width, formatHandle.Height);
@@ -77,6 +79,7 @@ internal sealed class InlineTextEditor : Border
         Canvas.SetLeft(this, box.Left);
         Canvas.SetTop(this, box.Top);
         Width = Math.Min(bounds.Width - box.Left, Math.Max(minWidth, box.Width));
+        preferredWidth = Width;
         double maxHeight = Math.Max(Input.MinHeight, Math.Min(Input.MaxHeight, bounds.Height - box.Top - 2 * margin));
         Input.Height = Math.Clamp(box.Height - 2 * margin, Input.MinHeight, maxHeight);
         RepositionPalette();
@@ -137,18 +140,16 @@ internal sealed class InlineTextEditor : Border
             BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3) };
         colorPicker = ActionButton("", "文字の色"); colorPicker.Content = colorSwatch; colorPicker.MinWidth = 44; colorPicker.Height = 34;
         formats.Children.Add(fontPicker); formats.Children.Add(FontSizeControls.Wrap(sizePicker)); formats.Children.Add(boldPicker); formats.Children.Add(colorPicker);
-        colorPalette = new EditorColorPalette(colorPicker, new (string, Color)[] { ("黒", Colors.Black), ("赤", Colors.Red),
-            ("青", Colors.RoyalBlue), ("緑", Colors.ForestGreen), ("橙", Colors.Orange), ("白", Colors.White),
-            ("濃い灰", Colors.DimGray), ("灰", Colors.Gray), ("濃い赤", Colors.DarkRed),
-            ("黄", Colors.Gold), ("黄緑", Colors.YellowGreen), ("水色", Colors.DeepSkyBlue),
-            ("紺", Colors.Navy), ("紫", Colors.MediumPurple), ("桃", Colors.HotPink),
-            ("青緑", Color.FromRgb(20, 80, 106)) }, color => { SetColor(color); AppearanceChanged?.Invoke(); });
+        colorPalette = new EditorColorPalette(colorPicker, EditorInkColors.Choices,
+            color => { SetColor(color); AppearanceChanged?.Invoke(); });
         var card = new Border { Child = root, Padding = new Thickness(12), Margin = new Thickness(8), Background = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
             Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 3, Opacity = .18, Color = Colors.Black } };
+        ThemeManager.StyleCard(card);
         card.SetValue(TextElement.FontFamilyProperty, new FontFamily("Yu Gothic UI")); card.SetValue(TextElement.FontSizeProperty, 12.0);
         card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Width = Math.Min(bounds.Width, boxWidth ?? Math.Max(card.DesiredSize.Width / zoom, fontSize * 12));
+        preferredWidth = Width;
         if (boxHeight.HasValue) Input.Height = Math.Clamp(boxHeight.Value, Input.FontSize * 1.3, Input.MaxHeight);
         palette = new Popup { Child = card, PlacementTarget = formatHandle, Placement = PlacementMode.Bottom, VerticalOffset = 3, AllowsTransparency = true, StaysOpen = true };
         formatHandle.Click += (_, _) => SetPaletteOpen(!formattingRequested);
@@ -179,14 +180,14 @@ internal sealed class InlineTextEditor : Border
         Unloaded += (_, _) => { ClosePalette(); if (owner != null) { owner.Deactivated -= HidePalette; owner.Activated -= ShowPalette; } owner = null; };
         LayoutUpdated += (_, _) => RepositionPalette();
     }
-    private static Button ActionButton(string label, string tip) => new() { Content = label, ToolTip = tip, Padding = new Thickness(9, 4, 9, 4), Margin = new Thickness(3, 0, 0, 0), MinHeight = 28, FontSize = 12, Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)) };
+    private static Button ActionButton(string label, string tip) => new() { Content = label, ToolTip = tip, Padding = new Thickness(9, 4, 9, 4), Margin = new Thickness(3, 0, 0, 0), MinHeight = 28, FontSize = 12 };
     private bool IsInputSource(DependencyObject source) => ReferenceEquals(source, Input) || source is TextElement or FlowDocument
         || source is Visual && Input.IsAncestorOf(source);
     internal bool IsInputSourceForTest(DependencyObject source) => IsInputSource(source);
     private void SetPaletteOpen(bool open)
     {
         formattingRequested = open; palette.IsOpen = open;
-        formatHandle.Background = open ? new SolidColorBrush(Color.FromRgb(219, 234, 254)) : Brushes.White;
+        formatHandle.SetResourceReference(Control.BackgroundProperty, open ? "AiryButtonBackgroundHover" : "AiryButtonBackground");
         if (open) RepositionPalette();
     }
     internal void OpenFormattingForTest() => SetPaletteOpen(true);
@@ -319,11 +320,13 @@ internal sealed class InlineTextEditor : Border
             double available = Math.Max(minHeight, bounds.Height - Math.Max(0, top) - 2 * margin);
             Input.Height = Math.Clamp(Input.Height + dy, minHeight, Math.Min(Input.MaxHeight, available));
         }
+        if (index is 0 or 2 or 3 or 4 or 6 or 7) preferredWidth = Width;
         RepositionPalette();
     }
     private void RepositionPalette()
     {
-        if (!IsLoaded || (!palette.IsOpen && !formatPopup.IsOpen)) return;
+        // Unloadedより先に表示先が外れる画面切替では座標変換しない。
+        if (!IsLoaded || (!palette.IsOpen && !formatPopup.IsOpen) || PresentationSource.FromVisual(this) == null) return;
         Point now = PointToScreen(new Point());
         Size size = new(ActualWidth, ActualHeight);
         if ((now - lastScreenPoint).Length < .1 && Math.Abs(size.Width - lastEditorSize.Width) < .1 && Math.Abs(size.Height - lastEditorSize.Height) < .1) return;
@@ -336,9 +339,9 @@ internal sealed class InlineTextEditor : Border
         // 空いている枠幅ではなく、実際の文字幅で右端を制限する。
         double textWidth = EditDrawing.TextShapes(Mark with { Start = new Point(), End = new Point() })
             .Select(shape => shape.Geometry.Bounds.IsEmpty ? 0 : shape.Geometry.Bounds.Right).DefaultIfEmpty(0).Max();
-        double minimumWidth = Math.Min(Width, Math.Max(70 / zoom, textWidth + 2 * (inset + padding) + 4 / zoom));
+        double minimumWidth = Math.Min(preferredWidth, Math.Max(70 / zoom, textWidth + 2 * (inset + padding) + 4 / zoom));
         double left = Math.Clamp(x, -inset - padding - InputTextLeftInset, Math.Max(0, bounds.Width - minimumWidth));
-        Width = Math.Min(Width, bounds.Width - Math.Max(0, left));
+        Width = Math.Min(preferredWidth, bounds.Width - Math.Max(0, left));
         Canvas.SetLeft(this, left);
         Canvas.SetTop(this, Math.Clamp(y, -inset - padding, Math.Max(0, bounds.Height - Input.Height - 2 * (inset + padding)))); RepositionPalette();
     }

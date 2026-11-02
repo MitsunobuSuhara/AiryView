@@ -94,6 +94,9 @@ public static class DesktopInstaller
         app.SetValue("FriendlyAppName", "AiryView");
         using (var icon = app.CreateSubKey("DefaultIcon")) icon.SetValue("", IconLocation(exe));
         using (var command = app.CreateSubKey(@"shell\open\command")) command.SetValue("", "\"" + exe + "\" \"%1\"");
+        RegisterPrintCommands(app, exe);
+        using (var pdf = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + ProgId(".pdf")))
+            RegisterPrintCommands(pdf, exe);
         using (var types = app.CreateSubKey("SupportedTypes"))
         {
             foreach (string extension in supportedExtensions) types.SetValue(extension, "");
@@ -132,13 +135,20 @@ public static class DesktopInstaller
         RemoveLegacyRegistrations(supportedExtensions);
         using var uninstall = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\AiryView");
         uninstall.SetValue("DisplayName", "AiryView");
-        uninstall.SetValue("DisplayVersion", "2.1.62");
+        uninstall.SetValue("DisplayVersion", typeof(App).Assembly.GetName().Version?.ToString(3) ?? "2.1.77");
         uninstall.SetValue("Publisher", "AiryView");
         uninstall.SetValue("InstallLocation", folder);
         uninstall.SetValue("DisplayIcon", IconLocation(exe));
         uninstall.SetValue("UninstallString", "\"" + exe + "\" --unregister");
         uninstall.SetValue("NoModify", 1); uninstall.SetValue("NoRepair", 1);
         SHChangeNotify(0x08000000, 0, null!, IntPtr.Zero);
+    }
+    private static void RegisterPrintCommands(Microsoft.Win32.RegistryKey key, string exe)
+    {
+        using (var print = key.CreateSubKey(@"shell\print\command"))
+            print.SetValue("", "\"" + exe + "\" --print \"%1\"");
+        using (var printTo = key.CreateSubKey(@"shell\printto\command"))
+            printTo.SetValue("", "\"" + exe + "\" --print \"%1\" --printer \"%2\"");
     }
     private static void RemoveLegacyRegistrations(IEnumerable<string> supportedExtensions)
     {

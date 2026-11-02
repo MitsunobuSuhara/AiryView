@@ -21,6 +21,7 @@ internal sealed class InlineShapeEditor : Canvas
         }
     }
     private readonly Popup palette;
+    internal FrameworkElement PaletteForTest => (FrameworkElement)palette.Child;
     private readonly TextBox sizePicker;
     private readonly Button colorPicker;
     private readonly Border colorSwatch;
@@ -35,6 +36,7 @@ internal sealed class InlineShapeEditor : Canvas
     internal event Action<int>? ZoomRequested;
     internal bool PaletteOpenForTest => palette.IsOpen;
     internal bool ColorPaletteGridForTest => colorPalette.Columns == 4 && colorPalette.SwatchesOnly;
+    internal int ColorChoiceCountForTest => colorPalette.ChoiceCount;
     internal bool HandlesClearOfPaletteForTest
     {
         get
@@ -90,7 +92,7 @@ internal sealed class InlineShapeEditor : Canvas
         move.DragDelta += (_, e) => { MoveBy(new Vector(e.HorizontalChange, e.VerticalChange)); e.Handled = true; };
         var root = new StackPanel(); root.Children.Add(shortcutHint);
         var commands = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 9) };
-        commands.Children.Add(new TextBlock { Text = highlight ? "ハイライト" : mark.Kind == "arrow" ? "矢印" : mark.Kind == "rectangle" ? "四角形" : mark.Kind == "ellipse" ? "円・楕円" : "線", Width = 70, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.SlateGray });
+        commands.Children.Add(new TextBlock { Text = highlight ? "ハイライト" : mark.Kind == "arrow" ? "矢印" : mark.Kind == "rectangle" ? "四角形" : mark.Kind == "ellipse" ? "円・楕円" : "線", Width = 70, VerticalAlignment = VerticalAlignment.Center });
         if (mark.Kind == "ellipse")
         {
             circleToggle = new CheckBox { Content = "真円", VerticalAlignment = VerticalAlignment.Center,
@@ -101,7 +103,7 @@ internal sealed class InlineShapeEditor : Canvas
         }
         root.Children.Add(commands);
         if (arrow) root.Children.Add(new TextBlock { Text = "○ 起点  ──▶  先端\n端の丸で長さ・向き、中央の移動マークで移動", FontSize = 12,
-            Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 9) });
+            Margin = new Thickness(0, 0, 0, 9) });
         var formats = new StackPanel { Orientation = Orientation.Horizontal };
         formats.Children.Add(new TextBlock { Text = "太さ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });
         sizePicker = new TextBox { Width = 54, Height = 30, Padding = new Thickness(5, 2, 5, 2), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "線の太さ", Margin = new Thickness(0, 0, 7, 0) };
@@ -111,16 +113,14 @@ internal sealed class InlineShapeEditor : Canvas
         colorSwatch = new Border { Width = 18, Height = 18, Background = new SolidColorBrush(mark.Color),
             BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2) };
         colorPicker = new Button { Content = colorSwatch, ToolTip = highlight ? "ハイライトの色" : "矢印・線の色",
-            Width = 46, Height = 34, Background = Brushes.White, BorderBrush = Brushes.LightGray };
+            Width = 46, Height = 34 };
         formats.Children.Add(colorPicker); root.Children.Add(formats);
-        var choices = highlight
-            ? new (string, Color)[] { ("黄", Colors.Yellow), ("ピンク", Colors.HotPink), ("水色", Colors.DeepSkyBlue), ("緑", Colors.ForestGreen), ("橙", Colors.Orange), ("紫", Colors.MediumPurple) }
-            : new (string, Color)[] { ("黒", Colors.Black), ("赤", Colors.Red), ("青", Colors.RoyalBlue), ("緑", Colors.ForestGreen), ("橙", Colors.Orange), ("白", Colors.White) };
-        colorPalette = new EditorColorPalette(colorPicker, choices,
+        colorPalette = new EditorColorPalette(colorPicker, EditorInkColors.Choices,
             selected => { SetAppearance(Mark.Size, selected); AppearanceChanged?.Invoke(); });
         var card = new Border { Child = root, Padding = new Thickness(12), Margin = new Thickness(8), Background = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
             Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 3, Opacity = .18, Color = Colors.Black } };
+        ThemeManager.StyleCard(card);
         card.SetValue(TextElement.FontFamilyProperty, new FontFamily("Yu Gothic UI")); card.SetValue(TextElement.FontSizeProperty, 12.0);
         palette = new Popup { Child = card, PlacementTarget = Mark.Start.Y >= Mark.End.Y ? start : end, Placement = PlacementMode.Bottom, VerticalOffset = 12, AllowsTransparency = true, StaysOpen = true };
         sizePicker.TextChanged += (_, _) =>
@@ -194,7 +194,6 @@ internal sealed class InlineShapeEditor : Canvas
         }
     }
     internal void UpdateZoom(double zoom) { unit = 1 / zoom; UpdateHandleSizes(); Refresh(); }
-    internal FrameworkElement PaletteForTest => (FrameworkElement)palette.Child;
     internal bool ShortcutHintInPaletteForTest => shortcutHint.Parent is StackPanel && shortcutHint.FontSize == 12;
     internal Size TipHandleSizeForTest => new(end.Width, end.Height);
     private Point Clamp(Point point) => new(Math.Clamp(point.X, 0, Width), Math.Clamp(point.Y, 0, Height));

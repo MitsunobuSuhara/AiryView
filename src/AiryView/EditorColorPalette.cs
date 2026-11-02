@@ -25,8 +25,7 @@ internal sealed class EditorColorPalette
             var swatch = new Border { Width = 22, Height = 22, Background = new SolidColorBrush(color),
                 BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3) };
             var button = new Button { Content = swatch, ToolTip = name, Width = 38, Height = 38,
-                Padding = new Thickness(3), Margin = new Thickness(2), Background = Brushes.White,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(218, 226, 234)) };
+                Padding = new Thickness(3), Margin = new Thickness(2) };
             button.Click += (_, _) => { select(color); popup.IsOpen = false; };
             choices.Add(button); grid.Children.Add(button);
         }
@@ -34,6 +33,7 @@ internal sealed class EditorColorPalette
             BorderBrush = new SolidColorBrush(Color.FromRgb(185, 199, 211)), BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 2, Opacity = .18 } };
+        ThemeManager.StyleCard(frame);
         popup.Child = frame;
         target.Click += (_, _) => popup.IsOpen = !popup.IsOpen;
     }

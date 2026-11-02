@@ -17,8 +17,7 @@ internal static class FontSizeControls
             int direction = row == 0 ? 1 : -1;
             var button = new RepeatButton { Content = row == 0 ? "▴" : "▾", FontSize = 10, Padding = new Thickness(0),
                 Focusable = false, IsTabStop = false, Delay = 350, Interval = 80,
-                ToolTip = stroke ? (row == 0 ? "線を太く / ↑" : "線を細く / ↓") : (row == 0 ? "文字を大きく / ↑" : "文字を小さく / ↓"), Background = Brushes.White,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)), BorderThickness = new Thickness(1) };
+                ToolTip = stroke ? (row == 0 ? "線を太く / ↑" : "線を細く / ↓") : (row == 0 ? "文字を大きく / ↑" : "文字を小さく / ↓"), BorderThickness = new Thickness(1) };
             button.Click += (_, _) => Step(field, direction, stroke); Grid.SetRow(button, row); arrows.Children.Add(button);
         }
         wrapper.Children.Add(arrows);

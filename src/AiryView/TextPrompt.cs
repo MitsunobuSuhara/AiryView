@@ -11,6 +11,7 @@ public static class TextPrompt
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var ok = new Button { Content = "OK", IsDefault = true }; var cancel = new Button { Content = "キャンセル", IsCancel = true };
         ok.Click += (_,_) => window.DialogResult = true; buttons.Children.Add(ok); buttons.Children.Add(cancel); panel.Children.Add(buttons);
+        WindowTitleBar.Install(window);
         window.Loaded += (_,_) => { if (secret) password.Focus(); else text.Focus(); };
         return window.ShowDialog() == true ? (secret ? password.Password : text.Text) : null;
     }

@@ -183,6 +183,10 @@ internal static class VisualEditorTests
         var mainBar = (WindowTitleBar)((DockPanel)nativeMain.Content).Children[0];
         Check(Math.Abs(mainBar.ActualHeight - editorBar.ActualHeight) < 1,
             "main and editor share the same title bar height");
+        Check(mainBar.FileMenuButton != null && mainBar.FileMenuPopup != null
+            && System.Windows.Automation.AutomationProperties.GetName(mainBar.FileOpenItem!) == "開く"
+            && System.Windows.Automation.AutomationProperties.GetName(mainBar.FilePrintItem!) == "印刷" && mainBar.FilePrintItem!.IsEnabled == false,
+            "main title bar groups opening and printing under File");
         nativeMain.WindowState = WindowState.Normal;
         string normalIcon = ((System.Windows.Shapes.Path)mainBar.MaximizeButton.Content).Data.ToString();
         mainBar.MaximizeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -196,19 +200,34 @@ internal static class VisualEditorTests
         mainBar.CloseButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(!nativeMain.IsVisible, "close caption button closes through the normal window handler");
         SavePreview(preview, folder + "/editor-title-bar.png");
-        Check(preview.SaveButtonWidthForTest >= 153, "save-as button keeps enough width for its Japanese label");
+        Check(preview.SaveButtonWidthForTest <= 44, "save-as action uses a compact icon button");
         Check(preview.CentimeterTextForTest.Contains("3.18 cm") && preview.CentimeterTextForTest.Contains("2.12 cm") && preview.CentimeterTextForTest.Contains("96 dpi換算"), "image dimensions show clearly labeled centimeter estimates below pixels");
-        Check(preview.ToolNamesForTest.SequenceEqual(new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) && preview.HighlightMethodNamesForTest.SequenceEqual(new[] { "範囲指定", "フリーハンド" }) && preview.ToolWidthForTest >= 140
-            && preview.HighlightMethodWidthForTest >= 160, "highlight method keeps its full label visible beside the icon");
-        Check(preview.ToolIconsReadyForTest, "all tool choices and highlight methods have right-side vector icons");
+        Check(preview.ToolNamesForTest.SequenceEqual(new[] { "文字", "矢印", "線", "四角形", "円・楕円", "ハイライト" }) && preview.HighlightMethodNamesForTest.SequenceEqual(new[] { "範囲指定", "フリーハンド" }) && preview.ToolWidthForTest <= 44
+            && preview.HighlightMethodWidthForTest <= 44, "drawing tools and highlight methods use compact icon buttons");
+        Check(preview.ToolIconsReadyForTest, "all tool choices and highlight methods have vector icons");
+        Check(preview.ColorChoiceCountForTest == 20, "main color palette offers twenty swatches in four columns");
+        preview.OpenColorPaletteForTest();
+        await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        SavePreview(preview, folder + "/main-color-grid.png", preview.ColorPaletteVisualForTest);
+        preview.SelectColorForTest(19);
+        Check(preview.SelectedColorForTest == Colors.Beige, "expanded main palette selects the last color");
+        preview.SelectColorForTest(1);
         Check(!preview.HighlightMethodVisibleForTest, "highlight method selector stays hidden during other tools");
         preview.SelectToolForTest("矢印");
         Check(preview.DrawingHintForTest.Contains("起点を押す") && preview.DrawingHintForTest.Contains("先端の位置で離す"),
             "choosing the arrow tool explains the drag direction before drawing");
         Check(preview.DrawingMarkForTest(new Point(10, 20), new Point(90, 40)) is { Kind: "arrow", Start.X: 10, Start.Y: 20, End.X: 90, End.Y: 40 },
             "arrow drawing uses the pressed point as the tail and the released point as the tip");
-        preview.SelectToolForTest("ハイライト"); Check(preview.HighlightMethodVisibleForTest, "highlight selection reveals its two drawing methods"); preview.SelectToolForTest("文字");
-        Check(preview.CropButtonTextForTest == "クリップ", "image editor labels the separate image operation clip");
+        preview.SelectToolForTest("ハイライト"); Check(preview.HighlightMethodVisibleForTest, "highlight selection reveals its two drawing methods");
+        double editorWidth = preview.Width;
+        preview.Width = preview.MinWidth;
+        preview.UpdateLayout();
+        Check(preview.StrokeFieldGroupedForTest, "stroke label, value and unit stay together when the toolbar wraps");
+        SavePreview(preview, folder + "/stroke-toolbar-wrap.png");
+        preview.Width = editorWidth;
+        preview.UpdateLayout();
+        preview.SelectToolForTest("文字");
+        Check(preview.CropButtonTextForTest == "切り抜き", "image editor labels the separate image crop operation");
         preview.StartCropForTest(); preview.SetCropSelectionForTest(new Rect(10, 10, 50, 35));
         Check(preview.CropModeForTest && preview.CropSelectionForTest is { Width: 50 } && preview.CropPopupOpenForTest && preview.CurrentModelForTest!.Frame.Width == 120, "clip selection opens a nearby popup without changing pixels");
         Check(preview.CropSizeTextForTest.Contains("50 × 35 px") && preview.CropSizeTextForTest.Contains("1.32 × 0.93 cm"), "clip selection shows pixel and centimeter size together");
@@ -231,8 +250,12 @@ internal static class VisualEditorTests
         Check(preview.HandleEditorWheel(120, true, new Point(100, 100)) && preview.EditorZoomForTest > initialZoom, "Ctrl wheel up zooms image editor");
         preview.HandleEditorWheel(-120, true, new Point(100, 100));
         Check(Math.Abs(preview.EditorZoomForTest - initialZoom) < .0001, "Ctrl wheel down reverses zoom");
-        preview.BeginText(new Point(10, 10));
-        Check(preview.ActiveTextEditor != null, "click creates an inline text box");
+        Check(!preview.CompleteTextDrag(new Point(10, 10), new Point(10, 10)) && preview.ActiveTextEditor == null,
+            "single click does not create a text box");
+        Check(!preview.CompleteTextDrag(new Point(10, 10), new Point(60, 10.1)) && preview.ActiveTextEditor == null,
+            "movement without a selected area does not create a text box");
+        Check(preview.CompleteTextDrag(new Point(5, 5), new Point(85, 40)) && preview.ActiveTextEditor != null,
+            "dragging a rectangular area creates a text box");
         Check(!preview.DeleteSelectedObject(), "Delete while typing does not remove a new text box");
         var edgeText = new InlineTextEditor(new Point(380, 20), "", 14, Colors.Black, 1,
             new Size(400, 300), () => { }, () => { });
@@ -277,8 +300,14 @@ internal static class VisualEditorTests
                 - rightText.PointToScreen(new Point(0, rightText.ActualHeight)).Y) < 2,
                 "bottom resize circle is centered on the text frame border");
             SavePreview(textHost, folder + "/right-edge-text.png");
+            rightText.MoveEdgesForTest[0].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(-80, 0)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+            Check(Math.Abs(rightText.Width - 70) < .5 && Canvas.GetLeft(rightText) < 320,
+                "dragging the text frame preserves its width and line wrapping");
             rightText.MoveForTest(100, 20);
             await textHost.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Check(Math.Abs(rightText.Width - 300) < .5 && rightText.Width > originalWidth,
+                "moving the text box back from the page edge restores the width available at its new position");
             var firstRect = paragraph.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
             var caretPoint = rightText.Input.TranslatePoint(firstRect.TopLeft, textCanvas);
             Check(Math.Abs(caretPoint.X - rightText.Mark.Start.X) < .5,
@@ -288,10 +317,11 @@ internal static class VisualEditorTests
                 { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
             Check(Math.Abs(rightText.Mark.Start.X - beforeMove.Start.X + 12) < .5 && rightText.PlainText == beforeMove.Text,
                 "dragging the frame edge moves the text without changing its content");
+            rightText.MoveForTest(20, 20);
             double beforeWidth = rightText.Width, beforeHeight = rightText.Input.Height;
-            rightText.ResizeHandlesForTest[4].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(18, 10)
+            rightText.ResizeHandlesForTest[4].RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(-18, 10)
                 { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
-            Check(Math.Abs(rightText.Width - beforeWidth - 18) < .5 && Math.Abs(rightText.Input.Height - beforeHeight - 10) < .5,
+            Check(Math.Abs(rightText.Width - beforeWidth + 18) < .5 && Math.Abs(rightText.Input.Height - beforeHeight - 10) < .5,
                 "dragging the bottom-right circle changes the text frame width and height");
             EditMark sizedText = rightText.Mark;
             var reopenedSized = new InlineTextEditor(sizedText.Start, sizedText.Text, sizedText.Size, sizedText.Color, 1,
@@ -396,9 +426,13 @@ internal static class VisualEditorTests
             "empty rich text box starts compact without a horizontal scrollbar");
         Check(pendingText!.Ink == Colors.Black && !pendingText.PaletteOpenForTest, "text formatting stays hidden while typing");
         Check(pendingText.ColorPickerLabelForTest is Border && pendingText.ColorSwatchSizeForTest.Width == 20
-            && pendingText.ColorChoiceCountForTest == 16 && pendingText.ColorPaletteGridForTest,
+            && pendingText.ColorChoiceCountForTest == preview.ColorChoiceCountForTest && pendingText.ColorPaletteGridForTest,
             "text color button and four-column palette show swatches without color names");
+        // 初回の入力欄レイアウト・フォーカス移動が終わってから操作する。
+        preview.Activate(); pendingText.Input.Focus();
+        await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         pendingText.OpenFormattingForTest();
+        await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Check(pendingText.PaletteOpenForTest, "text formatting opens from its corner button");
         pendingText.OpenColorPaletteForTest();
         for (int i = 0; i < 20 && PresentationSource.FromVisual(pendingText.ColorPaletteVisualForTest) == null; i++)
@@ -407,18 +441,20 @@ internal static class VisualEditorTests
             preview.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
         }
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        Check(PresentationSource.FromVisual(pendingText.ColorPaletteVisualForTest) != null,
+            "color palette is displayed before capturing it");
         Check(pendingText.ColorPaletteVisualForTest.ActualWidth < 220
-            && pendingText.ColorPaletteVisualForTest.ActualHeight < 220,
-            "sixteen colors fit in a compact four-by-four palette");
+            && pendingText.ColorPaletteVisualForTest.ActualHeight < 260,
+            "twenty colors fit in a compact four-column palette");
         SavePreview(preview, folder + "/text-color-grid.png", pendingText.ColorPaletteVisualForTest);
         pendingText.SelectFormattingForTest("shippori", 18, true);
         Check(pendingText.Mark is { FontId: "shippori", Size: 18, Bold: true }, "popup changes font size and bold without using the top toolbar");
-        pendingText.SelectColorForTest(1);
-        Check(pendingText.Ink == Colors.Red && pendingText.Mark is { FontId: "shippori", Size: 18, Bold: true }, "popup color selection preserves other formatting");
         pendingText.SelectColorForTest(0);
+        Check(pendingText.Ink == Colors.Red && pendingText.Mark is { FontId: "shippori", Size: 18, Bold: true }, "popup color selection preserves other formatting");
+        pendingText.SelectColorForTest(1);
         pendingText.PlainText = "赤青";
         pendingText.SelectTextForTest(0, 1);
-        pendingText.SelectColorForTest(1);
+        pendingText.SelectColorForTest(0);
         Check(pendingText.Mark.TextSegments is { Length: > 1 } parts && parts.Any(part => part.Text == "赤" && part.Color == Colors.Red)
             && parts.Any(part => part.Text == "青" && part.Color == Colors.Black), "selected text alone changes color within one text box");
         pendingText.SelectFormattingForTest("shippori", 24, true);
@@ -465,7 +501,8 @@ internal static class VisualEditorTests
         editedModel.Undo(); Check(editedModel.Frame.Marks.Length == 1 && editedModel.Frame.Marks[0].Text == "修正", "undo restores deleted text");
         preview.BeginShape(new("arrow", new(20, 60), new(80, 60), "", Colors.Red, 3));
         var pendingArrow = preview.ActiveShapeEditor; var pendingMark = pendingArrow!.Mark;
-        Check(pendingArrow.ColorPaletteGridForTest, "shape colors use the same swatch-only four-column palette");
+        Check(pendingArrow.ColorPaletteGridForTest && pendingArrow.ColorChoiceCountForTest == preview.ColorChoiceCountForTest,
+            "shape colors use the same twenty-color palette");
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Check(pendingArrow.PaletteOpenForTest, "selected arrow opens a nearby thickness and color palette");
         Check(pendingArrow.ShortcutHintInPaletteForTest, "shortcut hint belongs to the open shape palette");
@@ -506,7 +543,9 @@ internal static class VisualEditorTests
         preview.BeginShape(new("highlight", new(10, 10), new(80, 35), "", Colors.Yellow, 1));
         await preview.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         Check(preview.ActiveShapeEditor!.HandlesClearOfPaletteForTest, "highlight corner handles remain clear of the nearby palette");
-        preview.ActiveShapeEditor!.SelectFormattingForTest(1, 1);
+        Check(preview.ActiveShapeEditor!.ColorChoiceCountForTest == preview.ColorChoiceCountForTest,
+            "highlight colors use the same twenty-color palette");
+        preview.ActiveShapeEditor!.SelectFormattingForTest(1, 7);
         preview.ActiveShapeEditor.MoveEndpoint(false, new Vector(10, 5)); preview.CommitEdits();
         Check(editedModel.Frame.Marks.Last() is { Kind: "highlight", End.X: 90, End.Y: 40 } && editedModel.Frame.Marks.Last().Color == Colors.HotPink, "highlight palette changes color and corner handles resize the area");
         editedModel.Undo(); Check(editedModel.Frame.Marks.Length == 2, "highlight can be undone");
@@ -523,7 +562,7 @@ internal static class VisualEditorTests
         var freehand = new EditMark("highlight-freehand", new(20,20), new(90,60), "", Colors.DeepSkyBlue, 10, StrokePoints: strokePoints);
         preview.BeginShape(freehand); preview.ActiveShapeEditor!.MoveEndpoint(false, new Vector(20,10));
         Check(preview.ActiveShapeEditor.Mark.StrokePoints![^1] == new Point(110,70) && strokePoints[^1] == new Point(90,60), "freehand handles resize the complete stroke without mutating history");
-        preview.ActiveShapeEditor.SelectFormattingForTest(18, 1); preview.CommitEdits();
+        preview.ActiveShapeEditor.SelectFormattingForTest(18, 7); preview.CommitEdits();
         Check(editedModel.Frame.Marks.Last() is { Size: 18, Kind: "highlight-freehand" } && editedModel.Frame.Marks.Last().Color == Colors.HotPink, "freehand width and color are editable in its palette");
         editedModel.Undo();
         var freehandImage = new VisualEditModel(null,120,80); freehandImage.Add(freehand);
@@ -739,8 +778,33 @@ internal static class VisualEditorTests
         {
             await reader.ShowFilesAsync([source]);
             Check(((Button)reader.FindName("VisualEditButton")).Visibility == Visibility.Visible, "image has edit button");
+            var readerBar = (WindowTitleBar)((DockPanel)reader.Content).Children[0];
+            Check(readerBar.FilePrintItem?.IsEnabled == false, "File menu disables printing for images");
             await reader.OpenPathsAsync([fixture]);
             Check(((Button)reader.FindName("VisualEditButton")).IsEnabled, "editable PDF has write button");
+            Check(readerBar.FilePrintItem?.IsEnabled == true, "File menu offers printing for PDF");
+            var status = (TextBlock)reader.FindName("Status");
+            reader.UpdateLayout();
+            Check(status.Visibility == Visibility.Visible && status.Text.Contains("mm")
+                && status.TranslatePoint(new Point(status.ActualWidth, status.ActualHeight), reader).Y > reader.ActualHeight - 40,
+                "PDF page size and print scale return to the lower-right status bar");
+            var pageListButton = (Button)reader.FindName("PagePreviewButton");
+            Check(pageListButton.Visibility == Visibility.Visible
+                && pageListButton.TranslatePoint(new Point(), reader).X < ((Button)reader.FindName("VisualEditButton")).TranslatePoint(new Point(), reader).X,
+                "multipage PDF shows its page-list button at the far left of the toolbar");
+            readerBar.FileMenuButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await reader.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Check(readerBar.FileMenuPopup!.IsOpen, "File opens from the title bar");
+            SavePreview(reader, folder + "/file-menu.png", (FrameworkElement)readerBar.FileMenuPopup.Child);
+            readerBar.FileMenuPopup.IsOpen = false;
+            reader.TogglePagePreviewForTest();
+            for (int attempt = 0; attempt < 50 && reader.PagePreviewCountForTest < 2; attempt++) await Task.Delay(50);
+            Check(reader.PagePreviewVisibleForTest && reader.PagePreviewCountForTest == 2, "page-list menu displays both PDF thumbnails");
+            SavePreview(reader, folder + "/pdf-page-list.png");
+            reader.ClickPagePreviewForTest(1);
+            Check(reader.CurrentPdfPageForTest == 1, "selecting a thumbnail jumps to its page");
+            reader.TogglePagePreviewForTest();
+            Check(!reader.PagePreviewVisibleForTest, "page-list menu closes the thumbnail panel");
             Check(VisualEditorWindow.CreatedCount == editors, "normal image/PDF viewing never creates editor");
         }
         finally { reader.Close(); }

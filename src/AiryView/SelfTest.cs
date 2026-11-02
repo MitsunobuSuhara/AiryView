@@ -46,12 +46,15 @@ public static class SelfTest
             Check(keyboardDialog.ChoiceForTest == MessageBoxResult.No, "矢印で選んだ項目をEnterで実行");
             foreach (var (label, expected) in new (string, MessageBoxResult)[]
             {
-                ("破棄して閉じる", MessageBoxResult.Yes), ("キャンセル", MessageBoxResult.Cancel)
+                ("破棄して閉じる", MessageBoxResult.Yes), ("編集に戻る", MessageBoxResult.Cancel)
             })
             {
                 var dialog = SoftConfirmDialog.CreateDiscard(owner);
                 dialog.Loaded += (_, _) => dialog.Dispatcher.BeginInvoke(() =>
-                    FindButtons(dialog).First(button => button.Content as string == label).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+                {
+                    Check((Keyboard.FocusedElement as Button)?.Content as string == "編集に戻る", "破棄確認の初期選択は編集に戻る");
+                    FindButtons(dialog).First(button => button.Content as string == label).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                });
                 dialog.ShowDialog();
                 Check(dialog.ChoiceForTest == expected, "編集画面を閉じる確認: " + label);
             }
@@ -458,7 +461,8 @@ public static class SelfTest
         tooltip.ApplyTemplate();
         Check(System.Windows.Media.VisualTreeHelper.GetChild(tooltip, 0) is Border { CornerRadius: { TopLeft: 8 } }, "カーソルの説明を角丸の共通デザインにする");
         Check(window.TabCountForTest == 0 && ((FrameworkElement)window.FindName("Welcome")).IsVisible && !((FrameworkElement)window.FindName("TextEditorArea")).IsVisible, "単体起動の初期画面はメモを自動作成せず案内を表示");
-        Check(!((FrameworkElement)window.FindName("PageControls")).IsVisible && !((FrameworkElement)window.FindName("PrintButton")).IsVisible, "初期表示にPDF用操作の一瞬の表示を挟まない");
+        var fileMenu = (WindowTitleBar)((DockPanel)window.Content).Children[0];
+        Check(!((FrameworkElement)window.FindName("PageControls")).IsVisible && fileMenu.FilePrintItem?.IsEnabled == false, "初期表示にPDF用操作の一瞬の表示を挟まない");
         Capture(window, "artifacts/welcome-window.png");
         await window.NewTextAsync(); window.UpdateLayout();
         int firstTabCount = window.TabCountForTest;
@@ -474,6 +478,8 @@ public static class SelfTest
         await window.OpenPathsAsync([markdownFixture]); window.UpdateLayout();
         var markdownViewer = (System.Windows.Controls.FlowDocumentScrollViewer)window.FindName("MarkdownViewer");
         Check(markdownViewer.Visibility == Visibility.Visible && markdownViewer.Document.Blocks.Count >= 4, "MarkdownをPDFと同じタブ内で整形表示");
+        Check(((SolidColorBrush)markdownViewer.Document.Foreground).Color == ((SolidColorBrush)System.Windows.Application.Current.Resources["AiryEditorForeground"]).Color,
+            "Markdownプレビューの文字色をテーマに合わせる");
         var selectionBadge = (FrameworkElement)window.FindName("TextSelectionBadge");
         var selectionInfo = (TextBlock)window.FindName("TextSelectionInfo");
         var markdownModeButton = (Button)window.FindName("MarkdownModeButton");
@@ -489,7 +495,7 @@ public static class SelfTest
         Check(window.SaveTextToPathForTest(editedMarkdown) && File.ReadAllText(editedMarkdown, Encoding.UTF8).Contains("編集確認"), "Markdown Sourceを安全に保存");
         await window.ToggleMarkdownModeAsync(); window.UpdateLayout();
         Check(markdownViewer.Visibility == Visibility.Visible && window.SearchTextForTest("編集確認") == 1, "編集内容をPreview切替時に再整形");
-        Check(((FrameworkElement)window.FindName("DocumentToolbar")).Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("PageControls")).Visibility == Visibility.Collapsed && ((FrameworkElement)window.FindName("PrintButton")).Visibility == Visibility.Collapsed, "Markdownは文章用の倍率操作だけを表示");
+        Check(((FrameworkElement)window.FindName("DocumentToolbar")).Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("PageControls")).Visibility == Visibility.Collapsed && fileMenu.FilePrintItem?.IsEnabled == false, "Markdownは文章用の倍率操作だけを表示");
         double markdownZoom = window.ActiveZoomForTest; window.ZoomByWheel(120); window.UpdateLayout();
         Check(window.ActiveZoomForTest > markdownZoom && markdownViewer.Zoom > 100, "Markdown・TXTをCtrlホイール相当で文字拡大");
         Check(window.SearchTextForTest("本文") >= 1 && ((FrameworkElement)window.FindName("TextSearchBar")).Visibility == Visibility.Visible, "Ctrl＋F用の文章検索と強調表示");
@@ -511,7 +517,7 @@ public static class SelfTest
         Check(window.TabCountForTest == textTabCount && string.Equals(window.CurrentPathForTest, textFixture, StringComparison.OrdinalIgnoreCase), "同じTXTを再度開くと既存タブへ移動");
         textEditor.Text += "\n追記"; window.SaveTextForTest();
         Check(File.ReadAllText(textFixture, Encoding.UTF8).Contains("追記"), "TXTをCtrl＋S相当で上書き保存");
-        Check(((FrameworkElement)window.FindName("PrintButton")).Visibility == Visibility.Visible, "TXTで印刷ボタンを表示");
+        Check(fileMenu.FilePrintItem?.IsEnabled == true, "TXTでファイルメニューの印刷を有効にする");
         var tabs = (TabControl)window.FindName("Tabs");
         var firstTextTab = tabs.Items.Cast<TabItem>().First(t => string.Equals(t.ToolTip?.ToString(), textFixture, StringComparison.OrdinalIgnoreCase));
         textEditor.Text = "1つ目の未保存内容";
@@ -568,12 +574,11 @@ public static class SelfTest
         Check(((FrameworkElement)window.FindName("ImageViewer")).Visibility == Visibility.Visible && ((Image)window.FindName("ReaderImage")).Source is BitmapSource source && source.PixelWidth == 3200 && window.ActiveZoomForTest < 1, "大きなPNGを初回から画面幅に合わせて表示");
         double imageZoom = window.ActiveZoomForTest; window.ZoomByWheel(120); window.UpdateLayout();
         Check(window.ActiveZoomForTest > imageZoom && ((Image)window.FindName("ReaderImage")).Width > 0, "画像をCtrlホイール相当で拡大");
-        Check(((FrameworkElement)window.FindName("RotationControls")).Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("FitWidthButton")).Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("ResetRotationButton")).Visibility == Visibility.Visible, "画像の回転・リセット・画面内フィットを表示");
-        var resetRotation = (Button)window.FindName("ResetRotationButton");
-        var rotationButtons = FindButtons((DependencyObject)window.FindName("RotationControls")).ToArray();
-        var imageOpenButton = FindButtons((DependencyObject)window.FindName("DocumentToolbar")).First(b => b.ToolTip?.ToString()?.StartsWith("開く / Open") == true);
-        Check(rotationButtons.Length == 3 && rotationButtons.All(b => Near(b.ActualHeight, imageOpenButton.ActualHeight, 1)), "回転ボタンの枠の高さを主操作ボタンと揃える");
-        Check(resetRotation.ToolTip?.ToString()?.Contains("0°") == true, "回転のリセットを0度と明示する");
+        var clockwiseRotation = (Button)window.FindName("RotationControls");
+        Check(clockwiseRotation.Visibility == Visibility.Visible && ((FrameworkElement)window.FindName("FitWidthButton")).Visibility == Visibility.Visible, "画像の時計回り回転・画面内フィットを表示");
+        var imageEditButton = (Button)window.FindName("VisualEditButton");
+        Check(Near(clockwiseRotation.ActualHeight, imageEditButton.ActualHeight, 1), "時計回りボタンの枠の高さを主操作ボタンと揃える");
+        Check(clockwiseRotation.ToolTip?.ToString()?.Contains("時計回り") == true, "残す回転方向を明示する");
         int tabsBeforeClose = window.TabCountForTest;
         window.CloseCurrentTabForTest(); window.UpdateLayout();
         Check(window.TabCountForTest == tabsBeforeClose - 1, "保存済みタブを閉じて復元履歴へ追加");
@@ -596,10 +601,9 @@ public static class SelfTest
         Check(pageTotal >= 2, "連続表示の検証対象が複数ページ");
         await window.OpenPathsAsync([uiPath]);
         window.UpdateLayout();
-        Check(rotationButtons.All(b => Near(b.ActualHeight, imageOpenButton.ActualHeight, 1)), "PDF画面でも回転ボタンの枠の高さを揃える");
+        Check(Near(clockwiseRotation.ActualHeight, imageEditButton.ActualHeight, 1), "PDF画面でも時計回りボタンの枠の高さを揃える");
         var pageButtons = FindButtons((DependencyObject)window.FindName("PageControls")).ToArray();
-        var openButton = FindButtons((DependencyObject)window.FindName("DocumentToolbar")).First(b => b.ToolTip?.ToString()?.StartsWith("開く / Open") == true);
-        Check(pageButtons.Length == 2 && pageButtons.All(b => Near(b.ActualHeight, openButton.ActualHeight, 1)), $"ページ送りボタンの高さを主操作ボタンと揃える ({string.Join(",", pageButtons.Select(b => b.ActualHeight))} vs {openButton.ActualHeight})");
+        Check(pageButtons.Length == 2 && pageButtons.All(b => Near(b.ActualHeight, imageEditButton.ActualHeight, 1)), $"ページ送りボタンの高さを主操作ボタンと揃える ({string.Join(",", pageButtons.Select(b => b.ActualHeight))} vs {imageEditButton.ActualHeight})");
         Check(selectionBadge.Visibility == Visibility.Visible && selectionInfo.Text.Contains("縦") && selectionInfo.Text.Contains("原寸") && selectionInfo.Text.Contains("100%"), "PDFの原本サイズ・印刷モード・倍率を表示");
         int pdfTabCount = window.TabCountForTest;
         await window.OpenPathsAsync([uiPath]); window.UpdateLayout();

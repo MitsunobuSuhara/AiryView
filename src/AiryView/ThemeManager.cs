@@ -42,10 +42,14 @@ public static class ThemeManager
             SetBrush(res, "AiryIconStroke", Color.FromRgb(224, 218, 211));
             SetBrush(res, "AiryEditorBackground", Color.FromRgb(57, 53, 53)); // #393535
             SetBrush(res, "AiryEditorForeground", Color.FromRgb(242, 239, 235));
-            SetBrush(res, "AiryEditCanvas", Color.FromRgb(64, 68, 71)); // #404447
-            SetBrush(res, "AiryEditSurface", Color.FromRgb(75, 79, 82)); // #4B4F52
-
             SetBrush(res, "AiryEditorSelection", Color.FromRgb(53, 94, 111));
+            SetBrush(res, "AiryQuoteBackground", Color.FromRgb(67, 63, 63));
+            SetBrush(res, "AiryEditSurface", Color.FromRgb(75, 79, 82)); // #4B4F52
+            SetBrush(res, "AiryEditCanvas", Color.FromRgb(64, 68, 71)); // #404447
+            SetBrush(res, "AiryDanger", Color.FromRgb(252, 165, 165));
+            SetBrush(res, "AiryWarning", Color.FromRgb(251, 191, 36));
+            SetBrush(res, "AiryOnAccent", Color.FromRgb(44, 42, 40));
+
             res["AiryEditorSelectionOpacity"] = .85;
 
             var titleGradient = new LinearGradientBrush(new GradientStopCollection
@@ -66,7 +70,7 @@ public static class ThemeManager
             SetBrush(res, "AiryInkSecondary", Color.FromRgb(82, 99, 122));       // #52637A
             SetBrush(res, "AiryStroke", Color.FromRgb(215, 224, 234));           // #D7E0EA
             SetBrush(res, "AiryStrokeHover", Color.FromRgb(158, 181, 210));      // #9EB5D2
-            SetBrush(res, "AiryAccent", Color.FromRgb(71, 121, 189));            // #4779BD
+            SetBrush(res, "AiryAccent", Color.FromRgb(47, 101, 181));            // 白文字のコントラストを確保
             SetBrush(res, "AiryButtonBackground", Color.FromRgb(255, 255, 255)); // #FFFFFF
             SetBrush(res, "AiryButtonBackgroundHover", Color.FromRgb(247, 249, 252));
             SetBrush(res, "AiryTabInactiveBackground", Color.FromRgb(237, 241, 246)); // #EDF1F6
@@ -77,10 +81,14 @@ public static class ThemeManager
             SetBrush(res, "AiryIconStroke", Color.FromRgb(25, 36, 50));          // #192432
             SetBrush(res, "AiryEditorBackground", Color.FromRgb(255, 255, 255));
             SetBrush(res, "AiryEditorForeground", Color.FromRgb(36, 50, 68));
-
-            SetBrush(res, "AiryEditorSelection", Color.FromRgb(191, 219, 254));
+            SetBrush(res, "AiryEditorSelection", Color.FromRgb(191, 219, 254)); // #BFDBFE
+            SetBrush(res, "AiryQuoteBackground", Color.FromRgb(242, 244, 247));// #F2F4F7
             SetBrush(res, "AiryEditSurface", Color.FromRgb(231, 240, 245));
             SetBrush(res, "AiryEditCanvas", Color.FromRgb(199, 214, 226));
+            SetBrush(res, "AiryDanger", Color.FromRgb(185, 28, 28));
+            SetBrush(res, "AiryWarning", Color.FromRgb(180, 83, 9));
+            SetBrush(res, "AiryOnAccent", Colors.White);
+
             res["AiryEditorSelectionOpacity"] = .6;
 
             var titleGradient = new LinearGradientBrush(new GradientStopCollection
@@ -130,6 +138,39 @@ public static class ThemeManager
     {
         var next = CurrentTheme == AppTheme.Modern ? AppTheme.Classic : AppTheme.Modern;
         Apply(next, window);
-        if (window != null) WindowPreferences.Save(window);
+        // 子画面の大きさでメイン画面の保存寸法を上書きしない。
+        var main = Application.Current?.Windows.OfType<MainWindow>().FirstOrDefault();
+        if (main != null) WindowPreferences.Save(main);
+    }
+
+    internal static void StyleCard(Border card)
+    {
+        card.SetResourceReference(Border.BackgroundProperty, "AiryPopupBackground");
+        card.SetResourceReference(Border.BorderBrushProperty, "AiryStroke");
+        card.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "AiryInk");
+    }
+
+    internal static void PrimaryButton(Button button)
+    {
+        button.SetResourceReference(Control.BackgroundProperty, "AiryAccent");
+        button.SetResourceReference(Control.BorderBrushProperty, "AiryAccent");
+        button.SetResourceReference(Control.ForegroundProperty, "AiryOnAccent");
+    }
+
+    internal static void TrackWindow(Window window)
+    {
+        window.SetResourceReference(Control.BackgroundProperty, "AirySurface");
+        window.SetResourceReference(Control.ForegroundProperty, "AiryInk");
+        void Update(AppTheme theme) => UpdateWindowDarkAttribute(window, theme == AppTheme.Modern);
+        window.SourceInitialized += (_, _) => Update(CurrentTheme);
+        ThemeChanged += Update;
+        window.Closed += (_, _) => ThemeChanged -= Update;
+        if (window is not MainWindow)
+            window.PreviewKeyDown += (_, e) =>
+            {
+                if (System.Windows.Input.Keyboard.Modifiers == (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift)
+                    && e.Key == ToggleKey)
+                { Toggle(window); e.Handled = true; }
+            };
     }
 }

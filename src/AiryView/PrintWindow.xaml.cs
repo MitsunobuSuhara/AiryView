@@ -24,6 +24,7 @@ public partial class PrintWindow : Window
     {
         document = doc; currentPage = page; selectedRegion = region;
         InitializeComponent();
+        WindowTitleBar.Install(this);
         PercentBox.Text = doc.PrintPercent.ToString(CultureInfo.InvariantCulture);
         ModeBox.SelectedIndex = (int)doc.LastPrintMode;
         RegionBox.IsEnabled = region.HasValue; RegionBox.IsChecked = region.HasValue;

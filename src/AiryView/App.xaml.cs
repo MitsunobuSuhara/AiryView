@@ -27,6 +27,12 @@ public partial class App : System.Windows.Application
             return;
         }
         base.OnStartup(e);
+        if (e.Args.Contains("--print"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(CommandLinePrint.Run(e.Args));
+            return;
+        }
         if (e.Args.Contains("--security-test"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -49,6 +55,19 @@ public partial class App : System.Windows.Application
             AiryView.MainWindow.SuppressRecentFilesForTest = true;
             try { await DisplayTests.RunAsync(); Shutdown(0); }
             catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/display-test-failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
+        if (e.Args.Contains("--theme-test"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            DispatcherUnhandledException += (_, error) =>
+            {
+                error.Handled = true; Directory.CreateDirectory("artifacts");
+                File.WriteAllText("artifacts/test-failure.txt", error.Exception.ToString()); Shutdown(1);
+            };
+            try { await ThemeTests.RunAsync(); Shutdown(0); }
+            catch (Exception ex) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/test-failure.txt", ex.ToString()); Shutdown(1); }
             return;
         }
         if (e.Args.Contains("--page-preview-test"))

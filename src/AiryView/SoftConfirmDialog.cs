@@ -1,4 +1,3 @@
-using System.Windows.Media.Effects;
 using System.Windows.Input;
 
 namespace AiryView;
@@ -14,23 +13,27 @@ internal sealed class SoftConfirmDialog : Window
     {
         Owner = owner;
         Title = title;
-        Width = 470;
+        Width = 500;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
+        AllowsTransparency = false;
+        SetResourceReference(BackgroundProperty, "AiryPopupBackground");
         ShowInTaskbar = false;
         FontFamily = new FontFamily("Yu Gothic UI");
+        UseLayoutRounding = true;
+        SnapsToDevicePixels = true;
+        TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
+        TextOptions.SetTextRenderingMode(this, TextRenderingMode.ClearType);
 
         var card = new Border
         {
-            Margin = new Thickness(14), Padding = new Thickness(22),
+            Padding = new Thickness(24),
             Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(215, 224, 234)),
-            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(16),
-            Effect = new DropShadowEffect { BlurRadius = 20, ShadowDepth = 5, Opacity = .2, Color = Colors.Black }
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8)
         };
+        ThemeManager.StyleCard(card);
         Content = card;
         var content = new StackPanel(); card.Child = content;
 
@@ -39,38 +42,39 @@ internal sealed class SoftConfirmDialog : Window
             HorizontalAlignment = HorizontalAlignment.Right, ToolTip = "キャンセル" };
         close.Click += (_, _) => Close();
         DockPanel.SetDock(close, Dock.Right); heading.Children.Add(close);
-        heading.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(36, 50, 68)), VerticalAlignment = VerticalAlignment.Center });
+        heading.Children.Add(new TextBlock { Text = title, FontSize = 20, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center });
 
-        content.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, FontSize = 14,
-            Foreground = new SolidColorBrush(Color.FromRgb(66, 79, 97)), Margin = new Thickness(0, 18, 0, 22) });
+        content.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, FontSize = 16, LineHeight = 26,
+            Margin = new Thickness(0, 18, 0, 22) });
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         content.Children.Add(buttons);
         foreach (var (label, result) in actions)
         {
-            var button = new Button { Content = label, MinWidth = result == MessageBoxResult.No ? 120 : 84,
-                Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(4, 0, 0, 0),
-                IsDefault = result == MessageBoxResult.Yes, IsCancel = result == MessageBoxResult.Cancel };
+            var button = new Button { Content = label, MinWidth = result == MessageBoxResult.No ? 120 : 100,
+                MinHeight = 40, FontSize = 14, Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(6, 0, 0, 0),
+                IsDefault = result == MessageBoxResult.Yes && actions.Any(action => action.Result == MessageBoxResult.No)
+                    || result == MessageBoxResult.Cancel && actions.All(action => action.Result != MessageBoxResult.No),
+                IsCancel = result == MessageBoxResult.Cancel };
             button.GotKeyboardFocus += (_, _) =>
             {
-                button.Background = new SolidColorBrush(Color.FromRgb(47, 101, 181));
-                button.BorderBrush = new SolidColorBrush(Color.FromRgb(24, 67, 133));
-                button.Foreground = Brushes.White;
+                ThemeManager.PrimaryButton(button);
                 button.FontWeight = FontWeights.SemiBold;
             };
             button.LostKeyboardFocus += (_, _) =>
             {
-                button.Background = Brushes.White;
-                button.BorderBrush = new SolidColorBrush(Color.FromRgb(215, 224, 234));
-                button.Foreground = new SolidColorBrush(Color.FromRgb(36, 50, 68));
+                button.ClearValue(Control.BackgroundProperty);
+                button.ClearValue(Control.BorderBrushProperty);
+                button.ClearValue(Control.ForegroundProperty);
                 button.FontWeight = FontWeights.Normal;
             };
             button.Click += (_, _) => { choice = result; DialogResult = result != MessageBoxResult.Cancel; };
             buttons.Children.Add(button);
             actionButtons.Add(button);
         }
-        Loaded += (_, _) => actionButtons[0].Focus();
+        Loaded += (_, _) => (actions.All(action => action.Result != MessageBoxResult.No)
+            ? actionButtons.First(button => button.IsCancel) : actionButtons[0]).Focus();
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
@@ -105,8 +109,8 @@ internal sealed class SoftConfirmDialog : Window
     }
 
     internal static SoftConfirmDialog CreateDiscard(Window owner) => new(owner, "未保存の編集",
-        "保存していない編集を破棄して閉じますか？",
-        ("破棄して閉じる", MessageBoxResult.Yes), ("キャンセル", MessageBoxResult.Cancel));
+        "保存していない編集があります。\n閉じると、その編集内容は失われます。",
+        ("破棄して閉じる", MessageBoxResult.Yes), ("編集に戻る", MessageBoxResult.Cancel));
 
     internal static bool AskDiscard(Window owner) => CreateDiscard(owner).ShowDialog() == true;
 }

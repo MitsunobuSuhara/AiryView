@@ -55,6 +55,7 @@ public sealed class PdfToolsWindow : Window
         signTop.Children.Add(Label("PFX／P12証明書で署名します。検証は改ざん・署名値・Windowsの信頼証明書を調べます。オンライン失効確認は行わず、その状態を明示します。"));
         signTop.Children.Add(MakeButton("署名を確認", Verify));signTop.Children.Add(MakeButton("証明書で署名して別名保存", Sign));signatures.Children.Add(signTop); signatures.Children.Add(signatureResults);
         tabs.Items.Add(new TabItem { Header = "電子署名", Content = signatures });
+        WindowTitleBar.Install(this);
         Loaded += async (_,_) => await LoadFields();
         Closing += (_,e) => { if (busy) { e.Cancel = true; status.Text = "処理の完了までお待ちください。"; } };
     }

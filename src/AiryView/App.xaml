@@ -8,7 +8,7 @@
     <SolidColorBrush x:Key="AiryInkSecondary" Color="#52637A"/>
     <SolidColorBrush x:Key="AiryStroke" Color="#D7E0EA"/>
     <SolidColorBrush x:Key="AiryStrokeHover" Color="#9EB5D2"/>
-    <SolidColorBrush x:Key="AiryAccent" Color="#4779BD"/>
+    <SolidColorBrush x:Key="AiryAccent" Color="#2F65B5"/>
     <SolidColorBrush x:Key="AiryButtonBackground" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="AiryButtonBackgroundHover" Color="#F7F9FC"/>
     <SolidColorBrush x:Key="AiryTabInactiveBackground" Color="#EDF1F6"/>
@@ -19,6 +19,11 @@
     <SolidColorBrush x:Key="AiryIconStroke" Color="#192432"/>
     <SolidColorBrush x:Key="AiryEditorBackground" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="AiryEditorForeground" Color="#243244"/>
+    <SolidColorBrush x:Key="AiryEditSurface" Color="#E7F0F5"/>
+    <SolidColorBrush x:Key="AiryEditCanvas" Color="#C7D6E2"/>
+    <SolidColorBrush x:Key="AiryDanger" Color="#B91C1C"/>
+    <SolidColorBrush x:Key="AiryWarning" Color="#B45309"/>
+    <SolidColorBrush x:Key="AiryOnAccent" Color="White"/>
 
     <LinearGradientBrush x:Key="AiryTitleBarBackground" StartPoint="0,0" EndPoint="1,0">
       <GradientStop Color="#142F40" Offset="0"/>
@@ -70,6 +75,7 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource AiryInk}"/>
                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AiryStrokeHover}"/>
                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AiryButtonBackgroundHover}"/>
                 <Setter TargetName="Chrome" Property="Opacity" Value="0.95"/>
@@ -128,7 +134,7 @@
             <Grid>
               <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="9"/>
               <ContentPresenter x:Name="SelectedContent" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" Margin="10,0,32,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
-              <TextBox x:Name="PART_EditableTextBox" Style="{x:Null}" Visibility="Hidden" Background="Transparent" BorderThickness="0" Padding="0" Margin="10,0,32,0" VerticalContentAlignment="Center" IsReadOnly="{TemplateBinding IsReadOnly}" Text="{Binding Text, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+              <TextBox x:Name="PART_EditableTextBox" Style="{x:Null}" Visibility="Hidden" Background="Transparent" Foreground="{TemplateBinding Foreground}" CaretBrush="{DynamicResource AiryAccent}" BorderThickness="0" Padding="0" Margin="10,0,32,0" VerticalContentAlignment="Center" IsReadOnly="{TemplateBinding IsReadOnly}" Text="{Binding Text, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
               <ToggleButton x:Name="DropButton" Opacity="0" Focusable="False" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"/>
               <Path Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource AiryInkSecondary}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,13,0" IsHitTestVisible="False"/>
               <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
@@ -177,7 +183,55 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <Style TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="Foreground" Value="{DynamicResource AiryInk}"/></Style>
+    <!-- 親の文字色を継承し、強調ボタンと原稿本文の配色を上書きしない。 -->
+    <Style TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/></Style>
+
+    <ControlTemplate x:Key="AirySmallButtonTemplate" TargetType="ButtonBase">
+      <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AiryButtonBackgroundHover}"/></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.5"/></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate>
+    <Style TargetType="RepeatButton">
+      <Setter Property="Background" Value="{DynamicResource AiryButtonBackground}"/><Setter Property="Foreground" Value="{DynamicResource AiryInk}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource AiryStroke}"/><Setter Property="Template" Value="{StaticResource AirySmallButtonTemplate}"/>
+    </Style>
+    <Style TargetType="ToggleButton">
+      <Setter Property="Background" Value="{DynamicResource AiryButtonBackground}"/><Setter Property="Foreground" Value="{DynamicResource AiryInk}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource AiryStroke}"/><Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Template" Value="{StaticResource AirySmallButtonTemplate}"/>
+      <Style.Triggers><Trigger Property="IsChecked" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource AiryAccent}"/><Setter Property="BorderThickness" Value="2"/></Trigger></Style.Triggers>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Foreground" Value="{DynamicResource AiryInk}"/><Setter Property="Padding" Value="8,5"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBoxItem">
+        <Border x:Name="Chrome" Background="Transparent" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AiryButtonBackgroundHover}"/></Trigger>
+          <Trigger Property="IsSelected" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AiryAccent}"/><Setter TargetName="Chrome" Property="BorderThickness" Value="2,0,0,0"/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ListBox"><Setter Property="Background" Value="{DynamicResource AirySurfaceSecondary}"/><Setter Property="Foreground" Value="{DynamicResource AiryInk}"/><Setter Property="BorderBrush" Value="{DynamicResource AiryStroke}"/></Style>
+    <Style TargetType="ListBoxItem">
+      <Setter Property="Foreground" Value="{DynamicResource AiryInk}"/><Setter Property="Padding" Value="8,5"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+        <Border x:Name="Chrome" Background="Transparent" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AiryButtonBackgroundHover}"/></Trigger>
+          <Trigger Property="IsSelected" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AiryButtonBackgroundHover}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AiryAccent}"/><Setter TargetName="Chrome" Property="BorderThickness" Value="2,0,0,0"/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style TargetType="PasswordBox">
+      <Setter Property="Background" Value="{DynamicResource AiryButtonBackground}"/><Setter Property="Foreground" Value="{DynamicResource AiryInk}"/>
+      <Setter Property="CaretBrush" Value="{DynamicResource AiryAccent}"/><Setter Property="BorderBrush" Value="{DynamicResource AiryStroke}"/>
+    </Style>
+    <Style TargetType="ContextMenu"><Setter Property="Background" Value="{DynamicResource AiryPopupBackground}"/><Setter Property="Foreground" Value="{DynamicResource AiryInk}"/><Setter Property="BorderBrush" Value="{DynamicResource AiryStroke}"/></Style>
+    <Style TargetType="MenuItem"><Setter Property="Foreground" Value="{DynamicResource AiryInk}"/><Style.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter Property="Foreground" Value="#243244"/></Trigger></Style.Triggers></Style>
     <Style x:Key="AiryScrollPage" TargetType="RepeatButton">
       <Setter Property="Focusable" Value="False"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></Setter.Value></Setter>

@@ -1,10 +1,10 @@
 <Window x:Class="AiryView.PrintWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="印刷プレビュー — AiryView" Width="1150" Height="850" MinWidth="940" MinHeight="640" FontFamily="Yu Gothic UI" FontSize="14" Background="#F7F9FC" PreviewKeyDown="PrintShortcutKeyDown">
+ Title="印刷プレビュー — AiryView" Width="1150" Height="850" MinWidth="940" MinHeight="640" FontFamily="Yu Gothic UI" FontSize="14" Background="{DynamicResource AirySurface}" PreviewKeyDown="PrintShortcutKeyDown">
  <Window.InputBindings><KeyBinding Command="ApplicationCommands.Print" Key="Enter" Modifiers="Control"/></Window.InputBindings>
  <Window.CommandBindings><CommandBinding Command="ApplicationCommands.Print" Executed="PrintNowClick" CanExecute="CanPrintCommand"/></Window.CommandBindings>
  <Grid Margin="18">
   <Grid.ColumnDefinitions><ColumnDefinition Width="300"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-  <DockPanel Margin="0,0,18,0"><StackPanel DockPanel.Dock="Bottom"><Button x:Name="PrintButton" Content="この設定で印刷（Ctrl＋Enter）" ToolTip="Ctrl＋Enterで印刷開始" Click="PrintNowClick" Background="#0F766E" Foreground="White" IsEnabled="False" Margin="3,12,3,3"/></StackPanel><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+  <DockPanel Margin="0,0,18,0"><StackPanel DockPanel.Dock="Bottom"><Button x:Name="PrintButton" Content="この設定で印刷（Ctrl＋Enter）" ToolTip="Ctrl＋Enterで印刷開始" Click="PrintNowClick" Background="{DynamicResource AiryAccent}" Foreground="{DynamicResource AiryOnAccent}" IsEnabled="False" Margin="3,12,3,3"/></StackPanel><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
    <TextBlock Text="印刷" FontSize="25" FontWeight="SemiBold" Margin="3,0,0,14"/>
    <ComboBox x:Name="PrinterBox" SelectionChanged="PrinterSelected"/>
    <Button Content="プリンターの詳細設定" Click="PrinterClick"/>
@@ -22,7 +22,7 @@
    <WrapPanel><TextBlock Text="印刷倍率 %" Width="108"/><TextBox x:Name="PercentBox" PreviewKeyDown="NumberKeyDown" PreviewMouseLeftButtonDown="NumberClicked" GotKeyboardFocus="NumberFocused" Width="110" Text="100" TextChanged="SettingsChanged"/><StackPanel><Button Content="▲" Tag="PercentBox:1" Click="NumberStepClick" Padding="6,0" Margin="0,1" FontSize="10" ToolTip="1増やす"/><Button Content="▼" Tag="PercentBox:-1" Click="NumberStepClick" Padding="6,0" Margin="0,1" FontSize="10" ToolTip="1減らす"/></StackPanel></WrapPanel>
    <TextBlock Text="ページ範囲（空欄は全ページ）" Margin="4,12,4,4"/>
    <TextBox x:Name="RangeBox" ToolTip="例: 1-3 / 1,3 / 1-3,5" TextChanged="SettingsChanged"/>
-   <TextBlock Text="1-3：1～3ページ　／　1,3：1・3ページ&#10;1-3,5：1～3ページと5ページ&#10;空欄：全ページ" TextWrapping="Wrap" Foreground="#64748B" FontSize="12" Margin="4,2,4,6"/>
+   <TextBlock Text="1-3：1～3ページ　／　1,3：1・3ページ&#10;1-3,5：1～3ページと5ページ&#10;空欄：全ページ" TextWrapping="Wrap" Foreground="{DynamicResource AiryInkSecondary}" FontSize="12" Margin="4,2,4,6"/>
    <CheckBox x:Name="RegionBox" Visibility="Collapsed" Content="選択した範囲だけ印刷" Margin="4,8" Checked="SettingsChanged" Unchecked="SettingsChanged"/>
    <TextBlock Text="片面 / 両面" Margin="4,10,4,4"/>
    <ComboBox x:Name="DuplexBox" SelectedIndex="0" SelectionChanged="SettingsChanged"><ComboBoxItem Content="片面"/><ComboBoxItem Content="両面・長辺とじ"/><ComboBoxItem Content="両面・短辺とじ"/></ComboBox>
@@ -34,17 +34,17 @@
    </ComboBox>
    <CheckBox x:Name="RightBindingBox" Content="小冊子：右とじ" Margin="4,8" Checked="SettingsChanged" Unchecked="SettingsChanged"/>
    <StackPanel x:Name="PosterSettings" Visibility="Collapsed"><WrapPanel><TextBlock Text="貼り合わせ幅 mm" Width="108"/><TextBox x:Name="OverlapBox" ToolTip="ポスター印刷で、隣り合う紙を貼り合わせるために重ねて印刷する幅（mm）" PreviewMouseLeftButtonDown="NumberClicked" GotKeyboardFocus="NumberFocused" Width="110" Text="5" TextChanged="SettingsChanged"/></WrapPanel>
-   <TextBlock Text="隣の紙と重ねて印刷する幅です。貼り合わせるときの目安になります。" TextWrapping="Wrap" Foreground="#64748B" Margin="4,4"/></StackPanel>
-   <TextBlock Text="小冊子は横向き・短辺とじの両面を指定。ポスターは片面で出力します。" TextWrapping="Wrap" Foreground="#64748B" Margin="4,8"/>
-   <TextBlock Text="ドライバー側の倍率を100%、まとめて1枚・小冊子を無効にして、二重の縮小を防いでください。" TextWrapping="Wrap" Foreground="#64748B" Margin="4,8"/>
+   <TextBlock Text="隣の紙と重ねて印刷する幅です。貼り合わせるときの目安になります。" TextWrapping="Wrap" Foreground="{DynamicResource AiryInkSecondary}" Margin="4,4"/></StackPanel>
+   <TextBlock Text="小冊子は横向き・短辺とじの両面を指定。ポスターは片面で出力します。" TextWrapping="Wrap" Foreground="{DynamicResource AiryInkSecondary}" Margin="4,8"/>
+   <TextBlock Text="ドライバー側の倍率を100%、まとめて1枚・小冊子を無効にして、二重の縮小を防いでください。" TextWrapping="Wrap" Foreground="{DynamicResource AiryInkSecondary}" Margin="4,8"/>
 
 
   </StackPanel></ScrollViewer></DockPanel>
   <DockPanel Grid.Column="1">
    <TextBlock x:Name="Summary" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="12,4,0,10"/>
-   <TextBlock x:Name="Warning" DockPanel.Dock="Top" Foreground="#B45309" TextWrapping="Wrap" Margin="12,0,0,10"/>
+   <TextBlock x:Name="Warning" DockPanel.Dock="Top" Foreground="{DynamicResource AiryWarning}" TextWrapping="Wrap" Margin="12,0,0,10"/>
    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10"><Button Content="‹ 前の面" Click="PreviousClick"/><TextBlock x:Name="SideLabel" Margin="14,0" MaxWidth="380" TextWrapping="Wrap" TextAlignment="Center"/><Button Content="次の面 ›" Click="NextClick"/></StackPanel>
-   <ScrollViewer x:Name="PreviewScroller" PreviewMouseWheel="PreviewWheel" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#E8EDF4" ToolTip="ホイールでスクロール。端まで来ると前後の面へ切り替わります。"><Canvas x:Name="Preview" Background="White" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Top" ClipToBounds="True"/></ScrollViewer>
+   <ScrollViewer x:Name="PreviewScroller" PreviewMouseWheel="PreviewWheel" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="{DynamicResource AiryCanvas}" ToolTip="ホイールでスクロール。端まで来ると前後の面へ切り替わります。"><Canvas x:Name="Preview" Background="White" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Top" ClipToBounds="True"/></ScrollViewer>
   </DockPanel>
  </Grid>
 </Window>
