@@ -766,3 +766,6 @@ PDF寸法取得の本文解析・繰返し取得、WebP/SVGのPNG中間変換、
 - 検証版: build/publish成功（既存WFO0003警告）。配色75、編集303、UI164、混在用紙15、隔離21、基本37項目成功。両テーマの編集画面と仮想印刷の地図を目視。CLI5ケース（4頁仮想印刷、存在しない入力・プリンタ・既存出力のエラー、原本保護）成功。6頁の仮想出力も原寸用紙/向きを確認。
 - 検証フォルダーからの初回起動はAppContainerが配布バイナリを読めずパイプ終了→生成したappフォルダーだけにALL APPLICATION PACKAGESのRXを付与し成功。利用者文書・元ソースのACLは変更していない。初回の編集/隔離テストは専用作業フォルダーに既存fixture不足→合成PDFとテスト専用証明書を用意して再実行し成功。
 - 検証版と証跡はartifacts/hauldesk-print。実プリンタへの紙の出力は未実施。導入後の検証は追記する。
+- 導入完了追記: 利用者がAiryViewを閉じた後、標準インストーラー終了0でProgram Filesへ2.1.77+72898bbを導入。旧版との差分19ファイルはartifacts/hauldesk-print/install-backup-2.1.76にハッシュ付き退避。DLL SHA256 8978F76C49CEBBF3B297A6E87E6E3A634FFFA574C68C98D67965D613E70F1F49で候補と一致。exe/deps/helperも一致。
+- Windows PDF既定はApplications/AiryView.exeを維持し、print/printtoの実登録を確認。導入版でCLI5ケース、配色75/UI164/隔離21項目成功。hauldesk実入力の検証コピー（28せ1）を6部統合し、導入版からMicrosoft Print to PDFへ6頁出力、原本用紙/向きと画像を確認。利用者指定により紙は出していない。原PDFのSHA256と既定Apeos設定は不変、利用者の印刷履歴も未変更。
+- 再現証跡: artifacts/hauldesk-print/installed-verification、LOCALAPPDATA/Temp/AiryView-command-print-0f7b9a14df764159829b7f796e14ff21、同Temp/hauldesk-airyview-installed-618mpmr8。生成物と利用者のoutput/PDFはGitへ含めていない。
