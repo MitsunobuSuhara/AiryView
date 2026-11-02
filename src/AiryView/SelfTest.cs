@@ -811,6 +811,18 @@ public static class SelfTest
         modeBox.SelectedIndex = 0;
         await print.RefreshAsync();
         var jobPrinter = (PrintDocument)typeof(PrintWindow).GetField("printer", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(print)!;
+        var copyOrder = (ComboBox)print.FindName("CopyOrderBox");
+        Check(copyOrder.SelectedIndex == 0 && jobPrinter.PrinterSettings.Collate, "既定は従来の部単位印刷");
+        copiesInput.Text = "3"; copyOrder.SelectedIndex = 1;
+        await print.RefreshAsync();
+        Check(printButton.IsEnabled && jobPrinter.PrinterSettings.Copies == 3 && !jobPrinter.PrinterSettings.Collate
+            && ((TextBlock)print.FindName("Summary")).Text.Contains("ページ単位で印刷"), "3部のページ単位指定をプリンター設定と表示に反映");
+        Capture(print, "artifacts/print-page-order.png");
+        copyOrder.SelectedIndex = 0;
+        await print.RefreshAsync();
+        Check(jobPrinter.PrinterSettings.Collate && ((TextBlock)print.FindName("Summary")).Text.Contains("部単位で印刷"),
+            "部単位へ戻すとプリンター設定と表示も戻る");
+        copiesInput.Text = "1"; await print.RefreshAsync();
         var originalController = jobPrinter.PrintController;
         jobPrinter.PrintController = new CancelPrintController();
         printButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

@@ -27,6 +27,10 @@
    <TextBlock Text="片面 / 両面" Margin="4,10,4,4"/>
    <ComboBox x:Name="DuplexBox" SelectedIndex="0" SelectionChanged="SettingsChanged"><ComboBoxItem Content="片面"/><ComboBoxItem Content="両面・長辺とじ"/><ComboBoxItem Content="両面・短辺とじ"/></ComboBox>
    <WrapPanel><TextBlock Text="部数" Width="108"/><TextBox x:Name="CopiesBox" PreviewKeyDown="NumberKeyDown" PreviewMouseLeftButtonDown="NumberClicked" GotKeyboardFocus="NumberFocused" Width="110" Text="1" TextChanged="SettingsChanged"/><StackPanel><Button Content="▲" Tag="CopiesBox:1" Click="NumberStepClick" Padding="6,0" Margin="0,1" FontSize="10" ToolTip="1増やす"/><Button Content="▼" Tag="CopiesBox:-1" Click="NumberStepClick" Padding="6,0" Margin="0,1" FontSize="10" ToolTip="1減らす"/></StackPanel></WrapPanel>
+   <TextBlock Text="複数部の印刷順" Margin="4,10,4,4"/>
+   <ComboBox x:Name="CopyOrderBox" SelectedIndex="0" SelectionChanged="SettingsChanged">
+    <ComboBoxItem Content="部単位：1,2,3 → 1,2,3"/><ComboBoxItem Content="ページ単位：1,1,1 → 2,2,2"/>
+   </ComboBox>
    <CheckBox x:Name="RightBindingBox" Content="小冊子：右とじ" Margin="4,8" Checked="SettingsChanged" Unchecked="SettingsChanged"/>
    <StackPanel x:Name="PosterSettings" Visibility="Collapsed"><WrapPanel><TextBlock Text="貼り合わせ幅 mm" Width="108"/><TextBox x:Name="OverlapBox" ToolTip="ポスター印刷で、隣り合う紙を貼り合わせるために重ねて印刷する幅（mm）" PreviewMouseLeftButtonDown="NumberClicked" GotKeyboardFocus="NumberFocused" Width="110" Text="5" TextChanged="SettingsChanged"/></WrapPanel>
    <TextBlock Text="隣の紙と重ねて印刷する幅です。貼り合わせるときの目安になります。" TextWrapping="Wrap" Foreground="#64748B" Margin="4,4"/></StackPanel>

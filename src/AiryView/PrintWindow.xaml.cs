@@ -168,7 +168,7 @@ public partial class PrintWindow : Window
             if (activeMode == PrintMode.Poster && DuplexBox.SelectedIndex != 0) throw new ArgumentException("ポスターは片面を指定してください。");
             if (PaperBox.SelectedItem is PaperSize paper) printer.DefaultPageSettings.PaperSize = paper;
             printer.DefaultPageSettings.Landscape = OrientationBox.SelectedIndex == 1;
-            printer.PrinterSettings.Copies = copies; printer.PrinterSettings.Collate = true;
+            printer.PrinterSettings.Copies = copies; printer.PrinterSettings.Collate = CopyOrderBox.SelectedIndex == 0;
             printer.PrinterSettings.Duplex = DuplexBox.SelectedIndex switch { 1 => Duplex.Vertical, 2 => Duplex.Horizontal, _ => Duplex.Simplex };
             activeRegion = RegionBox.IsChecked == true ? selectedRegion : null;
             int[] pages = activeRegion.HasValue ? [currentPage] : PrintLayout.ParsePages(RangeBox.Text, document.Count);
@@ -183,6 +183,7 @@ public partial class PrintWindow : Window
             string paperSummary = string.Join(" / ", printPlan.GroupBy(PrintPaperPlan.PaperLabel).Select(g => $"{g.Key} {g.Count()}面"));
             int blanks = sheets.Count(s => s.Items.Count == 0);
             Summary.Text = $"{pages.Length}ページ → {sheets.Count}面 / {paperCount * copies}枚（{copies}部）\n{(MatchOriginal ? "原本に合わせる" : "指定用紙")}：{paperSummary}"
+                + (copies > 1 ? (printer.PrinterSettings.Collate ? "\n部単位で印刷" : "\nページ単位で印刷") : "")
                 + (blanks > 0 ? $"\n用紙・向きが変わる箇所に空白の裏面を{blanks}面追加" : "");
             Warning.Text = clipped ? "用紙の印刷可能範囲を超える部分が欠けます。指定倍率を維持し、自動縮小しません。赤線は印刷可能範囲です。" : "赤線は印刷可能範囲です（紙には印刷されません）。";
             await ShowSide();
