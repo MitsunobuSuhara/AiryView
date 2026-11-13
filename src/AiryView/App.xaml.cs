@@ -27,6 +27,14 @@ public partial class App : System.Windows.Application
             return;
         }
         base.OnStartup(e);
+        if (e.Args.Contains("--horizontal-scroll-test"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AiryView.MainWindow.SuppressRecentFilesForTest = true;
+            try { await HorizontalMouseWheelTests.RunAsync(); Shutdown(0); }
+            catch (Exception ex) { Directory.CreateDirectory("artifacts/horizontal-scroll"); File.WriteAllText("artifacts/horizontal-scroll/failure.txt", ex.ToString()); Shutdown(1); }
+            return;
+        }
         if (e.Args.Contains("--print"))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

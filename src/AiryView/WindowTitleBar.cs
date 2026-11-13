@@ -36,6 +36,7 @@ internal sealed class WindowTitleBar : DockPanel
     internal static WindowTitleBar Install(Window window, DockPanel root)
     {
         ThemeManager.TrackWindow(window);
+        HorizontalMouseWheel.Install(window);
         // WindowChromeで見た目だけを置換し、枠だけのドラッグ表示などOSの機能を残す。
         window.WindowStyle = WindowStyle.SingleBorderWindow;
         window.UseLayoutRounding = true; window.SnapsToDevicePixels = true;
